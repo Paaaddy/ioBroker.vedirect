@@ -21,7 +21,7 @@ const MpptModes = require(__dirname + '/lib/MpptModes.js');
 const BleReasons = require(__dirname + '/lib/BleReasons.js');
 const MonitorTypes = require(__dirname + '/lib/MonitorTypes.js');
 const {SerialCommandWriter, COMMAND_DEFINITIONS} = require(__dirname + '/lib/serialCommandWriter.js');
-const { getConfiguredDevices: getConfiguredDevicesLib } = require(__dirname + '/lib/deviceConfig.js');
+const { getConfiguredDevices } = require(__dirname + '/lib/deviceConfig.js');
 const warnMessages = {}; // Array to avoid unneeded spam too sentry
 
 const disableSentry = true; // Ensure to set to true during development !
@@ -181,7 +181,7 @@ class Vedirect extends utils.Adapter {
 	}
 
 	getConfiguredDevices() {
-		return getConfiguredDevicesLib(this.config);
+		return getConfiguredDevices(this.config);
 	}
 
 	getDeviceId(pathOverride) {
