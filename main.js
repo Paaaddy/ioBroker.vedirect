@@ -22,13 +22,6 @@ const BleReasons = require(__dirname + '/lib/BleReasons.js');
 const MonitorTypes = require(__dirname + '/lib/MonitorTypes.js');
 const {SerialCommandWriter, COMMAND_DEFINITIONS} = require(__dirname + '/lib/serialCommandWriter.js');
 const warnMessages = {}; // Array to avoid unneeded spam too sentry
-// Message throttling flag:
-// VE.Direct devices can stream many lines per second. When enabled in config,
-// we process one line and ignore the rest until the timeout ends.
-let bufferMessage = false;
-// Central timeout registry so we can clear timers on reconnect/unload.
-const timeouts = {};
-let polling, port;
 
 const disableSentry = true; // Ensure to set to true during development !
 
@@ -51,10 +44,10 @@ class Vedirect extends utils.Adapter {
 		this.commandChannelPrefix = '';
 		this.commandChannelPrefixes = new Set();
 		this.commandStateDefinitions = [];
-		this.lastTelemetryAt = 0;
+		this.deviceConnections = new Map();
 		this.commandWriter = new SerialCommandWriter(this, {
-			getPort: () => port,
-			getLastTelemetryAt: () => this.lastTelemetryAt,
+			getPort: (deviceId) => this.getWritablePort(deviceId),
+			getLastTelemetryAt: (deviceId) => this.getLastTelemetryAt(deviceId),
 			minIntervalMs: 250,
 			telemetryQuietTimeMs: 100,
 			queueEnabled: true,
@@ -71,9 +64,9 @@ class Vedirect extends utils.Adapter {
 
 		try {
 			const configuredDevices = this.getConfiguredDevices();
-			const primaryDevice = configuredDevices[0];
-			const deviceId = this.getDeviceId(primaryDevice ? primaryDevice.path : undefined);
-			this.commandChannelPrefix = `devices.${deviceId}.commands`;
+			this.commandChannelPrefixes.clear();
+			this.commandStateDefinitions = [];
+			this.deviceConnections.clear();
 			const processedDeviceIds = new Set();
 			for (const configuredDevice of configuredDevices) {
 				const configuredDeviceId = this.getDeviceId(configuredDevice.path);
@@ -84,74 +77,121 @@ class Vedirect extends utils.Adapter {
 				await this.ensureCommandStates(configuredDeviceId);
 			}
 
-			// Open Serial port connection
-			const USB_Device = primaryDevice ? primaryDevice.path : this.config.USBDevice;
-			if (!USB_Device) {
+			if (processedDeviceIds.size === 0) {
 				throw new Error('No USB device configured. Please provide at least one device path in the instance settings.');
 			}
-			port = new SerialPort({
-				path: USB_Device,
-				baudRate: 19200
-			});
-
-			port.on('error', (error) => {
-				this.log.error('Issue handling serial port connection : ' + JSON.stringify(error));
-				this.setState('info.connection', false, true);
-			});
-
-			// Open pipe and listen to parser to get data
-			const parser = port.pipe(new ReadlineParser({delimiter: '\r\n'}));
-
-			parser.on('data', (data) => {
-				this.lastTelemetryAt = Date.now();
-				this.log.debug(`[Serial data received] ${data}`);
-				if (!bufferMessage) {
-					this.log.debug('Message buffer inactive, processing data');
-					this.parse_serial(data);
-					if (this.config.messageBuffer > 0) {
-						// Start the "message buffer" pause window after handling one line.
-						// During this window incoming lines are skipped intentionally
-						// to reduce CPU usage and state-update noise.
-						this.log.debug(`Activate Message buffer with delay of ${this.config.messageBuffer * 1000}`);
-						bufferMessage = true;
-						if (timeouts.mesageBuffer) {clearTimeout(timeouts.mesageBuffer); timeouts.mesageBuffer = null;}
-						timeouts.mesageBuffer = setTimeout(() => {
-							bufferMessage = false;
-							this.log.debug('Message buffer timeout reached, will process data');
-						}, this.config.messageBuffer * 1000);
-					}
-				} else {
-					this.log.debug('Message buffer active, message ignored');
+			for (const configuredDevice of configuredDevices) {
+				const deviceId = this.getDeviceId(configuredDevice.path);
+				if (this.deviceConnections.has(deviceId)) {
+					this.log.warn(`Skipping duplicate configured device ID ${deviceId} for path ${configuredDevice.path}`);
+					continue;
 				}
-
-				// Indicate connection status
-				this.setState('info.connection', true, true);
-				// Clear running timer
-				(function () {
-					if (polling) {
-						clearTimeout(polling);
-						polling = null;
-					}
-				})();
-				// timer
-				polling = setTimeout(() => {
-					// Set time-out on connecting state when 10 seconds no information received
-					this.setState('info.connection', false, true);
-					this.log.error('No data received for 10 seconds, connection lost ?');
-				}, 10000);
-
-			});
-
-			parser.on('error', (error) => {
-				this.log.error('Issue handling serial port connection : ' + JSON.stringify(error));
-				this.setState('info.connection', false, true);
-			});
+				this.initializeDeviceConnection(deviceId, configuredDevice.path);
+			}
 
 		} catch (error) {
 			this.log.error('Connection to VE.Direct device failed !');
 			this.setState('info.connection', false, true);
 			this.errorHandler(error);
 		}
+	}
+
+	initializeDeviceConnection(deviceId, devicePath) {
+		const port = new SerialPort({
+			path: devicePath,
+			baudRate: 19200
+		});
+		const parser = port.pipe(new ReadlineParser({delimiter: '\r\n'}));
+		const connection = {
+			deviceId,
+			path: devicePath,
+			port,
+			parser,
+			lastTelemetryAt: 0,
+			bufferMessage: false,
+			timeouts: {
+				messageBuffer: null,
+				polling: null
+			}
+		};
+		this.deviceConnections.set(deviceId, connection);
+
+		port.on('error', (error) => {
+			this.log.error(`Issue handling serial port connection for ${deviceId} (${devicePath}) : ${JSON.stringify(error)}`);
+			this.setState('info.connection', false, true);
+		});
+
+		parser.on('data', (data) => {
+			connection.lastTelemetryAt = Date.now();
+			this.log.debug(`[Serial data received][${deviceId}][${devicePath}] ${data}`);
+			if (!connection.bufferMessage) {
+				this.log.debug(`[${deviceId}] Message buffer inactive, processing data`);
+				this.parse_serial(data);
+				if (this.config.messageBuffer > 0) {
+					// Start the "message buffer" pause window after handling one line.
+					// During this window incoming lines are skipped intentionally
+					// to reduce CPU usage and state-update noise.
+					this.log.debug(`[${deviceId}] Activate Message buffer with delay of ${this.config.messageBuffer * 1000}`);
+					connection.bufferMessage = true;
+					if (connection.timeouts.messageBuffer) {
+						clearTimeout(connection.timeouts.messageBuffer);
+						connection.timeouts.messageBuffer = null;
+					}
+					connection.timeouts.messageBuffer = setTimeout(() => {
+						connection.bufferMessage = false;
+						this.log.debug(`[${deviceId}] Message buffer timeout reached, will process data`);
+					}, this.config.messageBuffer * 1000);
+				}
+			} else {
+				this.log.debug(`[${deviceId}] Message buffer active, message ignored`);
+			}
+
+			// Indicate connection status
+			this.setState('info.connection', true, true);
+			if (connection.timeouts.polling) {
+				clearTimeout(connection.timeouts.polling);
+				connection.timeouts.polling = null;
+			}
+			connection.timeouts.polling = setTimeout(() => {
+				// Set time-out on connecting state when 10 seconds no information received
+				this.setState('info.connection', false, true);
+				this.log.error(`No data received for 10 seconds from ${deviceId} (${devicePath}), connection lost ?`);
+			}, 10000);
+		});
+
+		parser.on('error', (error) => {
+			this.log.error(`Issue handling serial parser for ${deviceId} (${devicePath}) : ${JSON.stringify(error)}`);
+			this.setState('info.connection', false, true);
+		});
+	}
+
+	getWritablePort(deviceId) {
+		if (deviceId && this.deviceConnections.has(deviceId)) {
+			const connection = this.deviceConnections.get(deviceId);
+			if (connection && connection.port && connection.port.writable) {
+				return connection.port;
+			}
+		}
+		for (const connection of this.deviceConnections.values()) {
+			if (connection.port && connection.port.writable) {
+				return connection.port;
+			}
+		}
+		return undefined;
+	}
+
+	getLastTelemetryAt(deviceId) {
+		if (deviceId && this.deviceConnections.has(deviceId)) {
+			const connection = this.deviceConnections.get(deviceId);
+			return connection ? connection.lastTelemetryAt : 0;
+		}
+		let latest = 0;
+		for (const connection of this.deviceConnections.values()) {
+			if (connection.lastTelemetryAt > latest) {
+				latest = connection.lastTelemetryAt;
+			}
+		}
+		return latest;
 	}
 
 	getConfiguredDevices() {
@@ -488,10 +528,22 @@ class Vedirect extends utils.Adapter {
 	onUnload(callback) {
 		this.setState('info.connection', false, true);
 		try {
-
-			port.close();
+			for (const [deviceId, connection] of this.deviceConnections.entries()) {
+				if (connection.timeouts.messageBuffer) {
+					clearTimeout(connection.timeouts.messageBuffer);
+					connection.timeouts.messageBuffer = null;
+				}
+				if (connection.timeouts.polling) {
+					clearTimeout(connection.timeouts.polling);
+					connection.timeouts.polling = null;
+				}
+				if (connection.port && connection.port.isOpen) {
+					connection.port.close();
+				}
+				this.log.debug(`Closed serial connection for ${deviceId} (${connection.path})`);
+			}
+			this.deviceConnections.clear();
 			this.log.info('VE.Direct terminated, all USB connections closed');
-			if (timeouts.mesageBuffer) {clearTimeout(timeouts.mesageBuffer); timeouts.mesageBuffer = null;}
 
 			callback();
 		} catch (e) {
