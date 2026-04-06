@@ -718,16 +718,10 @@ class Vedirect extends utils.Adapter {
 		}
 	}
 
-	errorHandler(source, error, debugMode) {
-		let message = error;
-		if (error instanceof Error && error.stack != null) message = error.stack;
-		if (!debugMode) {
-			this.log.error(`${source} ${error}`);
-			this.sendSentry(`${message}`);
-		} else {
-			this.log.error(`${source} ${error}`);
-			this.log.debug(`${source} ${message}`);
-		}
+	errorHandler(error) {
+		const message = error instanceof Error ? (error.stack || error.message) : String(error);
+		this.log.error(`[errorHandler] ${message}`);
+		this.sendSentry(message);
 	}
 
 	/**
