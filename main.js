@@ -50,6 +50,7 @@ class Vedirect extends utils.Adapter {
 		this.deviceMessageBufferTimers = new Map();
 		this.deviceLastTelemetryAt = new Map();
 		this.deviceConnectionStates = new Map();
+		this.lastConnectionState = null;
 		this.configuredDeviceIds = [];
 		this.commandWriter = new SerialCommandWriter(this, {
 			getPort: (deviceId) => this.devicePorts.get(deviceId),
@@ -165,7 +166,14 @@ class Vedirect extends utils.Adapter {
 
 	updateConnectionState() {
 		const isAnyDeviceConnected = Array.from(this.deviceConnectionStates.values()).some(Boolean);
-		this.setState('info.connection', isAnyDeviceConnected, true);
+		if (isAnyDeviceConnected !== this.lastConnectionState) {
+			if (typeof this.setStateChanged === 'function') {
+				this.setStateChanged('info.connection', isAnyDeviceConnected, true);
+			} else {
+				this.setState('info.connection', isAnyDeviceConnected, true);
+			}
+			this.lastConnectionState = isAnyDeviceConnected;
+		}
 	}
 
 	getConfiguredDevices() {
