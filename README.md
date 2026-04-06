@@ -33,6 +33,57 @@ In the instance settings you can now configure up to **three** device paths dire
 For backward compatibility, existing `USBDevice` and `devices` configurations are still read.
 The adapter currently uses the first configured device path as active serial connection.
 
+## Object tree generation
+
+This adapter creates two object groups during startup:
+
+1. **Root telemetry states** (`vedirect.<instance>.<key>`)
+   - VE.Direct keys are discovered from incoming serial frames and created dynamically via `stateSetCreate(stateName, name, value)`.
+   - Typical examples are `V` (battery voltage), `I` (battery current), `SOC` (state of charge), `VPV`, `PPV`, `CS`, `ERR`, etc.
+   - These telemetry states are created on demand at the adapter root (not inside `devices.*`).
+
+2. **Per-device command channels** (`vedirect.<instance>.devices.<normalizedDeviceId>.commands.*`)
+   - For every configured device path, the adapter creates command objects:
+     - `...commands.setMode`
+     - `...commands.setLoad`
+   - This allows targeting commands by device ID, independent of root telemetry states.
+
+### Device ID normalization (`getDeviceId()`)
+
+`getDeviceId()` derives `<normalizedDeviceId>` from the configured device path using this exact rule:
+
+1. Replace every character that is **not** `[a-zA-Z0-9_-]` with `_`.
+2. Collapse repeated underscores (`__`) to a single `_`.
+3. Trim leading/trailing underscores.
+4. If the result is empty, use `default`.
+
+### Normalization examples
+
+- `/dev/ttyUSB0` → `dev_ttyUSB0`
+- `/dev/serial/by-id/usb-VictronEnergy_BMV_700-if00` → `dev_serial_by-id_usb-VictronEnergy_BMV_700-if00`
+
+### Startup behavior and limits
+
+- **Active serial telemetry source:** the adapter opens exactly one active serial connection using the **first configured path** in priority order:
+  1. `device1Path`, `device2Path`, `device3Path` (new structured admin fields),
+  2. fallback to legacy `devices[]`,
+  3. fallback to legacy `USBDevice`.
+- **Command object generation:** after fixing issue #1, command states are generated for **all configured devices** (`device1Path`/`device2Path`/`device3Path`, or legacy device list), not only for the active telemetry device.
+- **Current runtime limit:** telemetry parsing still comes from the single active serial connection.
+
+### Troubleshooting: `device2` / `device3` objects missing
+
+If objects for additional devices are missing, check:
+
+1. **Admin config values**
+   - Ensure `Device 2 path` and `Device 3 path` are filled with non-empty paths and save the instance config.
+   - Restart the adapter instance after saving.
+2. **Object ID collisions**
+   - Different paths can normalize to the same ID (for example when they differ only by characters that become `_`), causing objects to overlap.
+   - Verify resulting IDs under `vedirect.<instance>.devices.*` and adjust paths to produce distinct normalized IDs.
+3. **Legacy/new config mixing**
+   - If structured fields are filled, they take precedence over legacy JSON-style entries.
+   - Remove stale legacy values if they cause unexpected device selection.
 
 ## Supported write commands (VE.Direct TX)
 
