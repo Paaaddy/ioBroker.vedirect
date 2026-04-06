@@ -49,6 +49,7 @@ class Vedirect extends utils.Adapter {
 		this.on('unload', this.onUnload.bind(this));
 		this.createdStatesDetails = {}; //  Array to store state objects to avoid unneeded object changes
 		this.commandChannelPrefix = '';
+		this.commandChannelPrefixes = new Set();
 		this.commandStateDefinitions = [];
 		this.lastTelemetryAt = 0;
 		this.commandWriter = new SerialCommandWriter(this, {
@@ -73,7 +74,15 @@ class Vedirect extends utils.Adapter {
 			const primaryDevice = configuredDevices[0];
 			const deviceId = this.getDeviceId(primaryDevice ? primaryDevice.path : undefined);
 			this.commandChannelPrefix = `devices.${deviceId}.commands`;
-			await this.ensureCommandStates(deviceId);
+			const processedDeviceIds = new Set();
+			for (const configuredDevice of configuredDevices) {
+				const configuredDeviceId = this.getDeviceId(configuredDevice.path);
+				if (processedDeviceIds.has(configuredDeviceId)) {
+					continue;
+				}
+				processedDeviceIds.add(configuredDeviceId);
+				await this.ensureCommandStates(configuredDeviceId);
+			}
 
 			// Open Serial port connection
 			const USB_Device = primaryDevice ? primaryDevice.path : this.config.USBDevice;
@@ -184,6 +193,7 @@ class Vedirect extends utils.Adapter {
 	async ensureCommandStates(deviceId) {
 		const deviceChannelId = `devices.${deviceId}`;
 		const commandsChannelId = `${deviceChannelId}.commands`;
+		this.commandChannelPrefixes.add(commandsChannelId);
 		await this.extendObject('devices', {
 			type: 'channel',
 			common: {
@@ -206,7 +216,7 @@ class Vedirect extends utils.Adapter {
 			native: {}
 		});
 
-		this.commandStateDefinitions = [
+		const commandStateDefinitionsForDevice = [
 			{
 				id: `${commandsChannelId}.setMode`,
 				common: {
@@ -242,7 +252,15 @@ class Vedirect extends utils.Adapter {
 			}
 		];
 
-		for (const definition of this.commandStateDefinitions) {
+		for (const definition of commandStateDefinitionsForDevice) {
+			const existingDefinitionIndex = this.commandStateDefinitions.findIndex(
+				(existingDefinition) => existingDefinition.id === definition.id
+			);
+			if (existingDefinitionIndex >= 0) {
+				this.commandStateDefinitions[existingDefinitionIndex] = definition;
+			} else {
+				this.commandStateDefinitions.push(definition);
+			}
 			await this.extendObject(definition.id, {
 				type: 'state',
 				common: definition.common,
@@ -257,7 +275,10 @@ class Vedirect extends utils.Adapter {
 			return;
 		}
 
-		if (!id.startsWith(`${this.namespace}.${this.commandChannelPrefix}.`)) {
+		const isKnownCommandPath = Array.from(this.commandChannelPrefixes).some((prefix) =>
+			id.startsWith(`${this.namespace}.${prefix}.`)
+		);
+		if (!isKnownCommandPath) {
 			return;
 		}
 
