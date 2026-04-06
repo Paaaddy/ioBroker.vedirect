@@ -3,8 +3,6 @@
 
 [![NPM version](http://img.shields.io/npm/v/iobroker.vedirect.svg)](https://www.npmjs.com/package/iobroker.vedirect)
 [![Downloads](https://img.shields.io/npm/dm/iobroker.vedirect.svg)](https://www.npmjs.com/package/iobroker.vedirect)
-[![Dependency Status](https://img.shields.io/david/DrozmotiX/iobroker.vedirect.svg)](https://david-dm.org/DrozmotiX/iobroker.vedirect)
-[![Known Vulnerabilities](https://snyk.io/test/github/DrozmotiX/ioBroker.vedirect/badge.svg)](https://snyk.io/test/github/DrozmotiX/ioBroker.vedirect)
 
 [![NPM](https://nodei.co/npm/iobroker.vedirect.png?downloads=true)](https://nodei.co/npm/iobroker.vedirect/)
 
@@ -141,6 +139,7 @@ Release history has been moved to [`CHANGELOG.md`](./CHANGELOG.md) to keep this 
 MIT License
 
 Copyright (c) 2023 DutchmanNL <oss@drozmotix.eu>
+Copyright (c) 2026 leotronik
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
