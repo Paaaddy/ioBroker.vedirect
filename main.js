@@ -20,6 +20,7 @@ const DeviceModes = require(__dirname + '/lib/DeviceModes.js');
 const MpptModes = require(__dirname + '/lib/MpptModes.js');
 const BleReasons = require(__dirname + '/lib/BleReasons.js');
 const MonitorTypes = require(__dirname + '/lib/MonitorTypes.js');
+const {SerialCommandWriter, COMMAND_DEFINITIONS} = require(__dirname + '/lib/serialCommandWriter.js');
 const warnMessages = {}; // Array to avoid unneeded spam too sentry
 let bufferMessage = false;
 const timeouts = {};
@@ -39,10 +40,20 @@ class Vedirect extends utils.Adapter {
 		});
 		this.on('ready', this.onReady.bind(this));
 		// this.on('objectChange', this.onObjectChange.bind(this));
-		// this.on('stateChange', this.onStateChange.bind(this));
+		this.on('stateChange', this.onStateChange.bind(this));
 		// this.on('message', this.onMessage.bind(this));
 		this.on('unload', this.onUnload.bind(this));
 		this.createdStatesDetails = {}; //  Array to store state objects to avoid unneeded object changes
+		this.commandChannelPrefix = '';
+		this.commandStateDefinitions = [];
+		this.lastTelemetryAt = 0;
+		this.commandWriter = new SerialCommandWriter(this, {
+			getPort: () => port,
+			getLastTelemetryAt: () => this.lastTelemetryAt,
+			minIntervalMs: 250,
+			telemetryQuietTimeMs: 100,
+			queueEnabled: true,
+		});
 	}
 
 	/**
@@ -54,6 +65,10 @@ class Vedirect extends utils.Adapter {
 		this.setState('info.connection', false, true);
 
 		try {
+			const deviceId = this.getDeviceId();
+			this.commandChannelPrefix = `devices.${deviceId}.commands`;
+			await this.ensureCommandStates(deviceId);
+
 			// Open Serial port connection
 			const USB_Device = this.config.USBDevice;
 			port = new SerialPort({
@@ -70,21 +85,22 @@ class Vedirect extends utils.Adapter {
 			const parser = port.pipe(new ReadlineParser({delimiter: '\r\n'}));
 
 			parser.on('data', (data) => {
-				this.log.debug(`[Serial data received] ${data}`)
+				this.lastTelemetryAt = Date.now();
+				this.log.debug(`[Serial data received] ${data}`);
 				if (!bufferMessage) {
-					this.log.debug(`Message buffer inactive, processing data`);
+					this.log.debug('Message buffer inactive, processing data');
 					this.parse_serial(data);
 					if (this.config.messageBuffer > 0) {
 						this.log.debug(`Activate Message buffer with delay of ${this.config.messageBuffer * 1000}`);
 						bufferMessage = true;
-						if (timeouts['mesageBuffer']) {clearTimeout(timeouts['mesageBuffer']); timeouts['mesageBuffer'] = null;}
-						timeouts['mesageBuffer'] = setTimeout(()=> {
+						if (timeouts.mesageBuffer) {clearTimeout(timeouts.mesageBuffer); timeouts.mesageBuffer = null;}
+						timeouts.mesageBuffer = setTimeout(() => {
 							bufferMessage = false;
-							this.log.debug(`Message buffer timeout reached, will process data`);
+							this.log.debug('Message buffer timeout reached, will process data');
 						}, this.config.messageBuffer * 1000);
 					}
 				} else {
-					this.log.debug(`Message buffer active, message ignored`);
+					this.log.debug('Message buffer active, message ignored');
 				}
 
 				// Indicate connection status
@@ -114,6 +130,120 @@ class Vedirect extends utils.Adapter {
 			this.log.error('Connection to VE.Direct device failed !');
 			this.setState('info.connection', false, true);
 			this.errorHandler(error);
+		}
+	}
+
+	getDeviceId() {
+		const usbPath = this.config.USBDevice || 'default';
+		return String(usbPath)
+			.replace(/[^a-zA-Z0-9_-]/g, '_')
+			.replace(/_+/g, '_')
+			.replace(/^_+|_+$/g, '') || 'default';
+	}
+
+	async ensureCommandStates(deviceId) {
+		const deviceChannelId = `devices.${deviceId}`;
+		const commandsChannelId = `${deviceChannelId}.commands`;
+		await this.extendObject('devices', {
+			type: 'channel',
+			common: {
+				name: 'VE.Direct devices'
+			},
+			native: {}
+		});
+		await this.extendObject(deviceChannelId, {
+			type: 'channel',
+			common: {
+				name: `Device ${deviceId}`
+			},
+			native: {}
+		});
+		await this.extendObject(commandsChannelId, {
+			type: 'channel',
+			common: {
+				name: `Commands for ${deviceId}`
+			},
+			native: {}
+		});
+
+		this.commandStateDefinitions = [
+			{
+				id: `${commandsChannelId}.setMode`,
+				common: {
+					name: 'Set charger mode (1=ON, 4=OFF)',
+					role: 'level.mode',
+					type: 'number',
+					read: true,
+					write: true,
+					min: 1,
+					max: 4,
+					states: {
+						1: 'On',
+						4: 'Off'
+					}
+				},
+				native: {
+					command: 'setMode'
+				}
+			},
+			{
+				id: `${commandsChannelId}.setLoad`,
+				common: {
+					name: 'Set load output',
+					role: 'switch.enable',
+					type: 'boolean',
+					read: true,
+					write: true,
+					def: false
+				},
+				native: {
+					command: 'setLoad'
+				}
+			}
+		];
+
+		for (const definition of this.commandStateDefinitions) {
+			await this.extendObject(definition.id, {
+				type: 'state',
+				common: definition.common,
+				native: definition.native
+			});
+			await this.subscribeStates(definition.id);
+		}
+	}
+
+	async onStateChange(id, state) {
+		if (!state || state.ack) {
+			return;
+		}
+
+		if (!id.startsWith(`${this.namespace}.${this.commandChannelPrefix}.`)) {
+			return;
+		}
+
+		const shortId = id.replace(`${this.namespace}.`, '');
+		const commandState = this.commandStateDefinitions.find((definition) => definition.id === shortId);
+		if (!commandState) {
+			this.log.error(`Rejecting write to unknown command state ${shortId}`);
+			return;
+		}
+
+		const commandName = commandState.native.command;
+		if (!COMMAND_DEFINITIONS[commandName]) {
+			this.log.error(`Rejecting write for unsupported command ${commandName}`);
+			return;
+		}
+
+		const deviceMatch = shortId.match(/^devices\.([^.]*)\.commands\./);
+		const deviceId = deviceMatch ? deviceMatch[1] : this.getDeviceId();
+		try {
+			await this.commandWriter.enqueue(deviceId, commandName, state.val);
+			await this.setStateAsync(shortId, {
+				val: state.val,
+				ack: true
+			});
+		} catch (error) {
+			this.log.error(`Command ${commandName} for ${deviceId} rejected: ${error.message || error}`);
 		}
 	}
 
@@ -296,7 +426,7 @@ class Vedirect extends utils.Adapter {
 
 			port.close();
 			this.log.info('VE.Direct terminated, all USB connections closed');
-			if (timeouts['mesageBuffer']) {clearTimeout(timeouts['mesageBuffer']); timeouts['mesageBuffer'] = null;}
+			if (timeouts.mesageBuffer) {clearTimeout(timeouts.mesageBuffer); timeouts.mesageBuffer = null;}
 
 			callback();
 		} catch (e) {
@@ -340,7 +470,7 @@ class Vedirect extends utils.Adapter {
 		try {
 			name = BleReasons[ble].reason;
 		} catch (error) {
-			name = 'unknown BLE reason = '+ ble;
+			name = 'unknown BLE reason = ' + ble;
 		}
 		return name;
 	}
@@ -450,12 +580,12 @@ class Vedirect extends utils.Adapter {
 			if (value != null) {
 				let expireTime = 0;
 				// Check if state should expire and expiration of states is active in config, if yes use preferred time
-				if (this.config.expireTime != null){
-					if (stateAttr[name].expire != null){
+				if (this.config.expireTime != null) {
+					if (stateAttr[name].expire != null) {
 						if (stateAttr[name].expire === true) {
 							expireTime = Number(this.config.expireTime);
 						}
-						if (stateAttr[name].expire === false){
+						if (stateAttr[name].expire === false) {
 							expireTime = 0;
 						}
 					}
