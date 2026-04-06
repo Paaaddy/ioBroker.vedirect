@@ -18,6 +18,21 @@
 	<script type="text/javascript" src="words.js"></script>
 
 	<script type="text/javascript">
+		function getDefaultDevicesFromLegacy(settings) {
+			if (!settings || !settings.USBDevice) {
+				return [];
+			}
+
+			return [{
+				id: 'device1',
+				path: settings.USBDevice,
+				baudRate: 19200,
+				enabled: true,
+				messageBuffer: Number(settings.messageBuffer) || 0,
+				expireTime: Number(settings.expireTime) || 0
+			}];
+		}
+
 		// This will be called by the admin adapter when the settings page loads
 		function load(settings, onChange) {
 			// example: select elements with id=key and class=value and insert value
@@ -38,6 +53,12 @@
 						;
 				}
 			});
+
+			const devices = Array.isArray(settings.devices) ? settings.devices : getDefaultDevicesFromLegacy(settings);
+			$('#devices').val(JSON.stringify(devices, null, 2))
+				.on('change', () => onChange())
+				.on('keyup', () => onChange());
+
 			onChange(false);
 			// reinitialize all the Materialize labels on the page if you are dynamically adding inputs:
 			if (M) M.updateTextFields();
@@ -55,6 +76,13 @@
 					obj[$this.attr('id')] = $this.val();
 				}
 			});
+			const devicesJson = $('#devices').val();
+			try {
+				obj.devices = devicesJson ? JSON.parse(devicesJson) : [];
+			} catch (error) {
+				showMessage(_('Invalid devices JSON. Please provide a valid array.'));
+				return;
+			}
 			callback(obj);
 		}
 	</script>
@@ -74,25 +102,43 @@
 
 		<div class="row">
 
-			<div class="input-field col s2">
+			<div class="input-field col s3">
 				<!--	placeholder	-->
 			</div>
 
-			<div class="input-field col s4">
+			<div class="input-field col s3">
 				<input placeholder="Example : /dev/ttyUSB1" id="USBDevice" type="text" class="value">
 				<label for="USBDevice" class="translate">USBDevice</label>
 			</div>
 
-			<div class="input-field col s4">
+			<div class="input-field col s3">
 				<input placeholder="Leave empty or 0 to not expire states" id="expireTime" type="number" class="value">
 				<label for="expireTime" class="translate">expireTime</label>
 			</div>
 
-			<div class="input-field col s2">
-				<input placeholder="Buffer messages in seconds to avoid system overload" id="messageBuffer" type="number" class="value">
-				<label for="messageBuffer" class="translate">messageBuffer</label>
+			<div class="input-field col s3">
+				<input placeholder="Fast states write window in seconds" id="fastStateInterval" type="number" class="value">
+				<label for="fastStateInterval" class="translate">fastStateInterval</label>
 			</div>
 
+			<div class="input-field col s3">
+				<input placeholder="Normal states write window in seconds" id="normalStateInterval" type="number" class="value">
+				<label for="normalStateInterval" class="translate">normalStateInterval</label>
+			</div>
+
+			<div class="input-field col s3">
+				<input placeholder="Slow states write window in seconds" id="slowStateInterval" type="number" class="value">
+				<label for="slowStateInterval" class="translate">slowStateInterval</label>
+			</div>
+
+		</div>
+
+		<div class="row">
+			<div class="input-field col s12">
+				<textarea id="devices" class="materialize-textarea"></textarea>
+				<label for="devices">devices (JSON Array)</label>
+				<span>Example: [{"id":"charger1","path":"/dev/ttyUSB0","enabled":true,"baudRate":19200,"messageBuffer":0,"expireTime":0}]</span>
+			</div>
 		</div>
 
 
