@@ -31,16 +31,16 @@ In the instance settings you can now configure up to **three** device paths dire
 - Device 3 path (optional)
 
 For backward compatibility, existing `USBDevice` and `devices` configurations are still read.
-The adapter currently uses the first configured device path as active serial connection.
+The adapter opens one serial telemetry stream per configured device path.
 
 ## Object tree generation
 
 This adapter creates two object groups during startup:
 
-1. **Root telemetry states** (`vedirect.<instance>.<key>`)
-   - VE.Direct keys are discovered from incoming serial frames and created dynamically via `stateSetCreate(stateName, name, value)`.
+1. **Per-device telemetry states** (`vedirect.<instance>.devices.<normalizedDeviceId>.<key>`)
+   - VE.Direct keys are discovered from incoming serial frames and created dynamically via `stateSetCreate(deviceId, stateName, name, value)`.
    - Typical examples are `V` (battery voltage), `I` (battery current), `SOC` (state of charge), `VPV`, `PPV`, `CS`, `ERR`, etc.
-   - These telemetry states are created on demand at the adapter root (not inside `devices.*`).
+   - Keys are namespaced per device, so values from multiple VE.Direct devices do not overwrite each other.
 
 2. **Per-device command channels** (`vedirect.<instance>.devices.<normalizedDeviceId>.commands.*`)
    - For every configured device path, the adapter creates command objects:
@@ -62,14 +62,20 @@ This adapter creates two object groups during startup:
 - `/dev/ttyUSB0` → `dev_ttyUSB0`
 - `/dev/serial/by-id/usb-VictronEnergy_BMV_700-if00` → `dev_serial_by-id_usb-VictronEnergy_BMV_700-if00`
 
-### Startup behavior and limits
+### Startup behavior
 
-- **Active serial telemetry source:** the adapter opens exactly one active serial connection using the **first configured path** in priority order:
-  1. `device1Path`, `device2Path`, `device3Path` (new structured admin fields),
+- **Serial telemetry source(s):** the adapter opens one active serial connection for **each configured device path** in priority order:
+  1. `device1Path`, `device2Path`, `device3Path` (structured admin fields),
   2. fallback to legacy `devices[]`,
   3. fallback to legacy `USBDevice`.
-- **Command object generation:** after fixing issue #1, command states are generated for **all configured devices** (`device1Path`/`device2Path`/`device3Path`, or legacy device list), not only for the active telemetry device.
-- **Current runtime limit:** telemetry parsing still comes from the single active serial connection.
+- **Object generation:** during startup, the adapter creates/extends `devices.<normalizedDeviceId>` channels and command states for all configured devices before telemetry values are written.
+- **Per-device runtime handling:** message-buffer timers, telemetry timeout timers, and connection health are tracked per device and cleaned up on unload.
+
+### Telemetry migration policy
+
+- New telemetry writes use `vedirect.<instance>.devices.<normalizedDeviceId>.<key>`.
+- Existing legacy root telemetry objects (`vedirect.<instance>.<key>`) are **not** deleted automatically by the adapter.
+- This keeps upgrades safe and non-destructive; you can remove legacy root objects manually after verifying your scripts/visualizations now read from the per-device tree.
 
 ### Troubleshooting: `device2` / `device3` objects missing
 
