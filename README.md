@@ -14,6 +14,14 @@
 
 Read VE.direct data from a Victron device with vedirect connector over USB <-> serial connection.
 
+## Project lineage (Forkception)
+
+This repository is maintained as **a fork by leotronik** and is based on the original adapter from
+[DrozmotiX/ioBroker.vedirect](https://github.com/DrozmotiX/ioBroker.vedirect).
+
+In short: **leotronik fork of a fork** (Forkception) to continue development and maintenance with
+project-specific additions.
+
 ### Configuration
 
 Set the proper device (example /dev/ttyUSB0) in adapter config.
@@ -61,6 +69,17 @@ If a write is rejected by validation or the serial link is not writable, the ada
     Placeholder for the next version (at the beginning of the line):
     ### __WORK IN PROGRESS__
 -->
+
+### __WORK IN PROGRESS__
+* (leotronik) Added VE.Direct TX write command states (`setMode`, `setLoad`) including validation, allowlist, ack filter, queueing and write rate limiting.
+* (leotronik) Added per-device reconnect manager with dedicated health states for more robust USB recovery handling.
+* (leotronik) Improved state-change handling and merged current open maintenance updates from active branches/PRs.
+
+#### Future topics
+* Add optional command retry/backoff strategy with configurable limits.
+* Extend writable command coverage for additional Victron devices and VE.Direct TX commands.
+* Add diagnostics view (last write result, queue depth, reconnect counters) in admin UI.
+* Expand integration tests for disconnect/reconnect edge cases and command collision scenarios.
 
 ### 0.3.3 (2024-09-10)
 * (DutchmanNL) Repository checker compliance updates
