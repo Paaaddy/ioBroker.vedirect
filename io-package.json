@@ -172,6 +172,7 @@
         "devices": [],
         "expireTime": 0,
         "messageBuffer": 0,
+        "deepStateDiagnostics": false,
         "coalesceInterval": 0,
         "device1Path": "",
         "device2Path": "",
