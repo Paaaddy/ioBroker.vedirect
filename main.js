@@ -44,6 +44,7 @@ class Vedirect extends utils.Adapter {
 		this.commandChannelPrefix = '';
 		this.commandChannelPrefixes = new Set();
 		this.commandStateDefinitions = [];
+		this.commandStateById = new Map();
 		this.devicePorts = new Map();
 		this.deviceMessageBufferFlags = new Map();
 		this.deviceMessageBufferTimers = new Map();
@@ -285,6 +286,10 @@ class Vedirect extends utils.Adapter {
 			} else {
 				this.commandStateDefinitions.push(definition);
 			}
+			this.commandStateById.set(definition.id, {
+				command: definition.native.command,
+				deviceId
+			});
 			await this.extendObject(definition.id, {
 				type: 'state',
 				common: definition.common,
@@ -299,28 +304,26 @@ class Vedirect extends utils.Adapter {
 			return;
 		}
 
+		const shortId = id.startsWith(`${this.namespace}.`) ? id.slice(this.namespace.length + 1) : id;
 		const isKnownCommandPath = Array.from(this.commandChannelPrefixes).some((prefix) =>
-			id.startsWith(`${this.namespace}.${prefix}.`)
+			shortId.startsWith(`${prefix}.`)
 		);
 		if (!isKnownCommandPath) {
 			return;
 		}
 
-		const shortId = id.replace(`${this.namespace}.`, '');
-		const commandState = this.commandStateDefinitions.find((definition) => definition.id === shortId);
-		if (!commandState) {
+		const commandMetadata = this.commandStateById.get(shortId);
+		if (!commandMetadata) {
 			this.log.error(`Rejecting write to unknown command state ${shortId}`);
 			return;
 		}
 
-		const commandName = commandState.native.command;
+		const {command: commandName, deviceId} = commandMetadata;
 		if (!COMMAND_DEFINITIONS[commandName]) {
 			this.log.error(`Rejecting write for unsupported command ${commandName}`);
 			return;
 		}
 
-		const deviceMatch = shortId.match(/^devices\.([^.]*)\.commands\./);
-		const deviceId = deviceMatch ? deviceMatch[1] : this.getDeviceId();
 		try {
 			await this.commandWriter.enqueue(deviceId, commandName, state.val);
 			await this.setStateAsync(shortId, {
