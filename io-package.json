@@ -157,7 +157,10 @@
         "byUSB": true,
         "USBDevice": "",
         "expireTime": 0,
-        "messageBuffer": 0
+        "messageBuffer": 0,
+        "fastStateInterval": 0,
+        "normalStateInterval": 0,
+        "slowStateInterval": 0
     },
     "objects": [],
     "instanceObjects": [

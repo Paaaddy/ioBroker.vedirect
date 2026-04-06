@@ -21,8 +21,6 @@ const MpptModes = require(__dirname + '/lib/MpptModes.js');
 const BleReasons = require(__dirname + '/lib/BleReasons.js');
 const MonitorTypes = require(__dirname + '/lib/MonitorTypes.js');
 const warnMessages = {}; // Array to avoid unneeded spam too sentry
-let bufferMessage = false;
-const timeouts = {};
 let polling, port;
 
 const disableSentry = true; // Ensure to set to true during development !
@@ -43,6 +41,8 @@ class Vedirect extends utils.Adapter {
 		// this.on('message', this.onMessage.bind(this));
 		this.on('unload', this.onUnload.bind(this));
 		this.createdStatesDetails = {}; //  Array to store state objects to avoid unneeded object changes
+		this.devices = {};
+		this.currentDeviceId = 'default';
 	}
 
 	/**
@@ -70,22 +70,8 @@ class Vedirect extends utils.Adapter {
 			const parser = port.pipe(new ReadlineParser({delimiter: '\r\n'}));
 
 			parser.on('data', (data) => {
-				this.log.debug(`[Serial data received] ${data}`)
-				if (!bufferMessage) {
-					this.log.debug(`Message buffer inactive, processing data`);
-					this.parse_serial(data);
-					if (this.config.messageBuffer > 0) {
-						this.log.debug(`Activate Message buffer with delay of ${this.config.messageBuffer * 1000}`);
-						bufferMessage = true;
-						if (timeouts['mesageBuffer']) {clearTimeout(timeouts['mesageBuffer']); timeouts['mesageBuffer'] = null;}
-						timeouts['mesageBuffer'] = setTimeout(()=> {
-							bufferMessage = false;
-							this.log.debug(`Message buffer timeout reached, will process data`);
-						}, this.config.messageBuffer * 1000);
-					}
-				} else {
-					this.log.debug(`Message buffer active, message ignored`);
-				}
+				this.log.debug(`[Serial data received] ${data}`);
+				this.parse_serial(data);
 
 				// Indicate connection status
 				this.setState('info.connection', true, true);
@@ -121,158 +107,164 @@ class Vedirect extends utils.Adapter {
 		try {
 			this.log.debug('Line : ' + line);
 			const res = line.split('\t');
+			const stateKey = res[0];
+			const rawValue = res[1];
+			if (stateKey === 'SER#' && rawValue) {
+				this.currentDeviceId = this.getDeviceId(rawValue);
+				this.log.debug(`[parse_serial] Active device set to ${this.currentDeviceId}`);
+			}
 			if (stateAttr[res[0]] !== undefined) {
 				switch (res[0]) {   // Used for special modifications to write a state with correct values and types
 					case 'CE':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'V':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'V2':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'V3':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'VS':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'VM':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'DM':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 10);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 10);
 						break;
 
 					case 'VPV':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'I':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'I2':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'I3':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'IL':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'SOC':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 10);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 10);
 						break;
 
 					case 'AR':
-						this.stateSetCreate(res[0], res[0], await this.get_alarm_reason(res[1]));
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], await this.get_alarm_reason(res[1]));
 						break;
 
 					case 'WARN':
-						this.stateSetCreate(res[0], res[0], await this.get_alarm_reason(res[1]));
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], await this.get_alarm_reason(res[1]));
 						break;
 
 					case 'OR':
-						this.stateSetCreate(res[0], res[0], await this.get_off_reason(res[1]));
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], await this.get_off_reason(res[1]));
 						break;
 
 					case 'H6':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'H7':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'H8':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'H15':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'H16':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'H17':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 100);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 100);
 						break;
 
 					case 'H18':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 100);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 100);
 						break;
 
 					case 'H19':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 100);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 100);
 						break;
 
 					case 'H20':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 100);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 100);
 						break;
 
 					case 'H22':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 100);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 100);
 						break;
 
 					case 'ERR':
-						this.stateSetCreate(res[0], res[0], await this.get_err_state(res[1]));
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], await this.get_err_state(res[1]));
 						break;
 
 					case 'CS':
-						this.stateSetCreate(res[0], res[0], await this.get_cs_state(res[1]));
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], await this.get_cs_state(res[1]));
 						break;
 
 					case 'PID':
-						this.stateSetCreate(res[0], res[0], await this.get_product_longname(res[1]));
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], await this.get_product_longname(res[1]));
 						break;
 
 					case 'MODE':
-						this.stateSetCreate(res[0], res[0], await this.get_device_mode(res[1]));
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], await this.get_device_mode(res[1]));
 						break;
 
 					case 'AC_OUT_V':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 100);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 100);
 						break;
 
 					case 'AC_OUT_I':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 10);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 10);
 						break;
 
 					case 'MPPT':
-						this.stateSetCreate(res[0], res[0], await this.get_mppt_mode(res[1]));
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], await this.get_mppt_mode(res[1]));
 						break;
 
 					case 'MON':
-						this.stateSetCreate(res[0], res[0], await this.get_monitor_type(res[1]));
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], await this.get_monitor_type(res[1]));
 						break;
 
 					case 'DC_IN_V':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 100);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 100);
 						break;
 
 					case 'DC_IN_I':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 10);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]) / 10);
 						break;
 
 					case 'DC_IN_P':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]));
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], Math.floor(res[1]));
 						break;
 
 					default:    // Used for all other measure points with no required special handling
-						this.stateSetCreate(res[0], res[0], res[1]);
+						this.stateSetCreate(this.currentDeviceId, res[0], res[0], res[1]);
 						break;
 				}
 			}
@@ -296,7 +288,7 @@ class Vedirect extends utils.Adapter {
 
 			port.close();
 			this.log.info('VE.Direct terminated, all USB connections closed');
-			if (timeouts['mesageBuffer']) {clearTimeout(timeouts['mesageBuffer']); timeouts['mesageBuffer'] = null;}
+			this.clearDeviceTimers();
 
 			callback();
 		} catch (e) {
@@ -400,7 +392,43 @@ class Vedirect extends utils.Adapter {
      * @param name {string} Name of state (also used for stattAttrlib!)
      * @param value {boolean | number | string | null} Value of the state
      */
-	stateSetCreate(stateName, name, value) {
+	stateSetCreate(deviceId, stateName, name, value) {
+		const device = this.getDevice(deviceId);
+		const shouldBypassThrottle = this.shouldBypassThrottle(name, stateName);
+		if (shouldBypassThrottle) {
+			this.writeStateNow(stateName, name, value);
+			return;
+		}
+
+		const throttleWindowMs = this.getThrottleWindowMs(device, name);
+		if (throttleWindowMs <= 0) {
+			this.writeStateNow(stateName, name, value);
+			return;
+		}
+
+		const keyControl = device.keys[stateName] || {};
+		keyControl.stateName = stateName;
+		keyControl.name = name;
+		keyControl.value = value;
+		keyControl.windowMs = throttleWindowMs;
+		device.keys[stateName] = keyControl;
+
+		if (!keyControl.timer) {
+			this.log.debug(`[stateSetCreate] Throttling ${stateName} for ${throttleWindowMs}ms on device ${deviceId}`);
+			keyControl.timer = setTimeout(() => {
+				const pending = device.keys[stateName];
+				if (!pending) {
+					return;
+				}
+				pending.timer = null;
+				this.writeStateNow(pending.stateName, pending.name, pending.value);
+			}, throttleWindowMs);
+		} else {
+			this.log.debug(`[stateSetCreate] Updated buffered value for ${stateName} on device ${deviceId}`);
+		}
+	}
+
+	writeStateNow(stateName, name, value) {
 		this.log.debug('[stateSetCreate]' + stateName + ' with value : ' + value);
 		// const expireTime = 0;
 		try {
@@ -477,6 +505,63 @@ class Vedirect extends utils.Adapter {
 		} catch (error) {
 			this.sendSentry(`[stateSetCreate] ${error}`);
 		}
+	}
+
+	getDevice(deviceId) {
+		const normalizedId = this.getDeviceId(deviceId);
+		if (!this.devices[normalizedId]) {
+			this.devices[normalizedId] = {
+				keys: {},
+				intervals: this.getDeviceIntervals()
+			};
+		}
+		return this.devices[normalizedId];
+	}
+
+	getDeviceId(rawDeviceId) {
+		if (!rawDeviceId || typeof rawDeviceId !== 'string') {
+			return 'default';
+		}
+		return rawDeviceId.trim().replace(/[^\w.-]/g, '_') || 'default';
+	}
+
+	getDeviceIntervals() {
+		return {
+			fast: Math.max(0, Number(this.config.fastStateInterval) || 0) * 1000,
+			normal: Math.max(0, Number(this.config.normalStateInterval) || Number(this.config.messageBuffer) || 0) * 1000,
+			slow: Math.max(0, Number(this.config.slowStateInterval) || 0) * 1000
+		};
+	}
+
+	getThrottleWindowMs(device, stateKey) {
+		const group = this.getStateGroup(stateKey);
+		return device.intervals[group] || 0;
+	}
+
+	getStateGroup(stateKey) {
+		if (/^H\d+$/i.test(stateKey) || ['FW', 'FWE', 'HSDS', 'PID', 'SER#', 'BMV'].includes(stateKey)) {
+			return 'slow';
+		}
+		if (['V', 'V2', 'V3', 'VS', 'VM', 'DM', 'VPV', 'PPV', 'I', 'I2', 'I3', 'IL', 'LOAD', 'T', 'P', 'CE', 'SOC', 'TTG', 'AC_OUT_V', 'AC_OUT_I', 'AC_OUT_S', 'DC_IN_V', 'DC_IN_I', 'DC_IN_P'].includes(stateKey)) {
+			return 'fast';
+		}
+		return 'normal';
+	}
+
+	shouldBypassThrottle(stateKey, stateName) {
+		const criticalKeys = ['Alarm', 'AR', 'WARN', 'ERR', 'CS', 'OR', 'info.connection'];
+		return criticalKeys.includes(stateKey) || criticalKeys.includes(stateName);
+	}
+
+	clearDeviceTimers() {
+		Object.values(this.devices).forEach((device) => {
+			Object.values(device.keys).forEach((keyControl) => {
+				if (keyControl.timer) {
+					clearTimeout(keyControl.timer);
+					keyControl.timer = null;
+				}
+			});
+		});
 	}
 
 	errorHandler(source, error, debugMode) {

@@ -74,23 +74,33 @@
 
 		<div class="row">
 
-			<div class="input-field col s2">
+			<div class="input-field col s3">
 				<!--	placeholder	-->
 			</div>
 
-			<div class="input-field col s4">
+			<div class="input-field col s3">
 				<input placeholder="Example : /dev/ttyUSB1" id="USBDevice" type="text" class="value">
 				<label for="USBDevice" class="translate">USBDevice</label>
 			</div>
 
-			<div class="input-field col s4">
+			<div class="input-field col s3">
 				<input placeholder="Leave empty or 0 to not expire states" id="expireTime" type="number" class="value">
 				<label for="expireTime" class="translate">expireTime</label>
 			</div>
 
-			<div class="input-field col s2">
-				<input placeholder="Buffer messages in seconds to avoid system overload" id="messageBuffer" type="number" class="value">
-				<label for="messageBuffer" class="translate">messageBuffer</label>
+			<div class="input-field col s3">
+				<input placeholder="Fast states write window in seconds" id="fastStateInterval" type="number" class="value">
+				<label for="fastStateInterval" class="translate">fastStateInterval</label>
+			</div>
+
+			<div class="input-field col s3">
+				<input placeholder="Normal states write window in seconds" id="normalStateInterval" type="number" class="value">
+				<label for="normalStateInterval" class="translate">normalStateInterval</label>
+			</div>
+
+			<div class="input-field col s3">
+				<input placeholder="Slow states write window in seconds" id="slowStateInterval" type="number" class="value">
+				<label for="slowStateInterval" class="translate">slowStateInterval</label>
 			</div>
 
 		</div>
