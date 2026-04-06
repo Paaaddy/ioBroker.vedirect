@@ -653,7 +653,7 @@ class Vedirect extends utils.Adapter {
 			common.unit = stateAttr[name] !== undefined ? stateAttr[name].unit || '' : '';
 			common.write = stateAttr[name] !== undefined ? stateAttr[name].write || false : false;
 
-			if ((!this.createdStatesDetails[createStateName]) || (this.createdStatesDetails[createStateName] && (
+			const metadataChanged = (!this.createdStatesDetails[createStateName]) || (this.createdStatesDetails[createStateName] && (
 				common.name !== this.createdStatesDetails[createStateName].name ||
                     common.name !== this.createdStatesDetails[createStateName].name ||
                     common.type !== this.createdStatesDetails[createStateName].type ||
@@ -661,7 +661,9 @@ class Vedirect extends utils.Adapter {
                     common.read !== this.createdStatesDetails[createStateName].read ||
                     common.unit !== this.createdStatesDetails[createStateName].unit ||
                     common.write !== this.createdStatesDetails[createStateName].write)
-			)) {
+			);
+
+			if (metadataChanged) {
 				this.log.debug(`[stateSetCreate] An attribute has changed for : ${stateName}`);
 				// We only extend the object if metadata actually changed.
 				// This avoids frequent object-db writes on every telemetry line.
@@ -677,6 +679,9 @@ class Vedirect extends utils.Adapter {
 
 			// Store current object definition to memory
 			this.createdStatesDetails[createStateName] = common;
+			if (this.config.deepStateDiagnostics === true && metadataChanged) {
+				this.log.debug(`[stateSetCreate] metadata updated for key: ${createStateName}`);
+			}
 
 			// Set value to state including expiration time
 			if (value != null) {
@@ -705,7 +710,6 @@ class Vedirect extends utils.Adapter {
 
 			// Subscribe on state changes if writable
 			common.write && this.subscribeStates(createStateName);
-			this.log.debug('[stateSetCreate] All createdStatesDetails' + JSON.stringify(this.createdStatesDetails));
 		} catch (error) {
 			this.sendSentry(`[stateSetCreate] ${error}`);
 		}
