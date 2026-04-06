@@ -45,11 +45,11 @@ class Vedirect extends utils.Adapter {
 		this.commandChannelPrefixes = new Set();
 		this.commandStateDefinitions = [];
 		this.devicePorts = new Map();
-		this.devicePollingTimers = new Map();
 		this.deviceMessageBufferFlags = new Map();
 		this.deviceMessageBufferTimers = new Map();
 		this.deviceLastTelemetryAt = new Map();
 		this.deviceConnectionStates = new Map();
+		this.deviceConnectionWatchdogInterval = null;
 		this.configuredDeviceIds = [];
 		this.commandWriter = new SerialCommandWriter(this, {
 			getPort: (deviceId) => this.devicePorts.get(deviceId),
@@ -95,6 +95,7 @@ class Vedirect extends utils.Adapter {
 			for (const configuredDevice of uniqueConfiguredDevices) {
 				await this.openDevicePort(configuredDevice.deviceId, configuredDevice.path);
 			}
+			this.startConnectionWatchdog();
 
 		} catch (error) {
 			this.log.error('Connection to VE.Direct device failed !');
@@ -110,6 +111,7 @@ class Vedirect extends utils.Adapter {
 		});
 		this.devicePorts.set(deviceId, serialPort);
 		this.deviceConnectionStates.set(deviceId, false);
+		this.deviceLastTelemetryAt.set(deviceId, 0);
 
 		serialPort.on('error', (error) => {
 			this.log.error(`Issue handling serial port connection for ${deviceId}: ${JSON.stringify(error)}`);
@@ -145,15 +147,6 @@ class Vedirect extends utils.Adapter {
 			}
 			this.deviceConnectionStates.set(deviceId, true);
 			this.updateConnectionState();
-			if (this.devicePollingTimers.get(deviceId)) {
-				clearTimeout(this.devicePollingTimers.get(deviceId));
-			}
-			const pollingTimer = setTimeout(() => {
-				this.deviceConnectionStates.set(deviceId, false);
-				this.updateConnectionState();
-				this.log.error(`No data received for 10 seconds on ${deviceId}, connection lost ?`);
-			}, 10000);
-			this.devicePollingTimers.set(deviceId, pollingTimer);
 		});
 
 		parser.on('error', (error) => {
@@ -166,6 +159,23 @@ class Vedirect extends utils.Adapter {
 	updateConnectionState() {
 		const isAnyDeviceConnected = Array.from(this.deviceConnectionStates.values()).some(Boolean);
 		this.setState('info.connection', isAnyDeviceConnected, true);
+	}
+
+	startConnectionWatchdog() {
+		if (this.deviceConnectionWatchdogInterval) {
+			clearInterval(this.deviceConnectionWatchdogInterval);
+		}
+		this.deviceConnectionWatchdogInterval = setInterval(() => {
+			const now = Date.now();
+			for (const [deviceId, lastTelemetryAt] of this.deviceLastTelemetryAt.entries()) {
+				const isConnected = this.deviceConnectionStates.get(deviceId);
+				if (isConnected && now - lastTelemetryAt > 10000) {
+					this.deviceConnectionStates.set(deviceId, false);
+					this.updateConnectionState();
+					this.log.error(`No data received for 10 seconds on ${deviceId}, connection lost ?`);
+				}
+			}
+		}, 1000);
 	}
 
 	getConfiguredDevices() {
@@ -502,10 +512,10 @@ class Vedirect extends utils.Adapter {
 	onUnload(callback) {
 		this.setState('info.connection', false, true);
 		try {
-			for (const timer of this.devicePollingTimers.values()) {
-				clearTimeout(timer);
+			if (this.deviceConnectionWatchdogInterval) {
+				clearInterval(this.deviceConnectionWatchdogInterval);
+				this.deviceConnectionWatchdogInterval = null;
 			}
-			this.devicePollingTimers.clear();
 			for (const timer of this.deviceMessageBufferTimers.values()) {
 				clearTimeout(timer);
 			}
