@@ -385,15 +385,15 @@ class Vedirect extends utils.Adapter {
 						break;
 
 					case 'AR':
-						this.stateSetCreate(deviceId, res[0], res[0], await this.get_alarm_reason(res[1]));
+						this.stateSetCreate(deviceId, res[0], res[0], this.get_alarm_reason(res[1]));
 						break;
 
 					case 'WARN':
-						this.stateSetCreate(deviceId, res[0], res[0], await this.get_alarm_reason(res[1]));
+						this.stateSetCreate(deviceId, res[0], res[0], this.get_alarm_reason(res[1]));
 						break;
 
 					case 'OR':
-						this.stateSetCreate(deviceId, res[0], res[0], await this.get_off_reason(res[1]));
+						this.stateSetCreate(deviceId, res[0], res[0], this.get_off_reason(res[1]));
 						break;
 
 					case 'H6':
@@ -437,19 +437,19 @@ class Vedirect extends utils.Adapter {
 						break;
 
 					case 'ERR':
-						this.stateSetCreate(deviceId, res[0], res[0], await this.get_err_state(res[1]));
+						this.stateSetCreate(deviceId, res[0], res[0], this.get_err_state(res[1]));
 						break;
 
 					case 'CS':
-						this.stateSetCreate(deviceId, res[0], res[0], await this.get_cs_state(res[1]));
+						this.stateSetCreate(deviceId, res[0], res[0], this.get_cs_state(res[1]));
 						break;
 
 					case 'PID':
-						this.stateSetCreate(deviceId, res[0], res[0], await this.get_product_longname(res[1]));
+						this.stateSetCreate(deviceId, res[0], res[0], this.get_product_longname(res[1]));
 						break;
 
 					case 'MODE':
-						this.stateSetCreate(deviceId, res[0], res[0], await this.get_device_mode(res[1]));
+						this.stateSetCreate(deviceId, res[0], res[0], this.get_device_mode(res[1]));
 						break;
 
 					case 'AC_OUT_V':
@@ -461,11 +461,11 @@ class Vedirect extends utils.Adapter {
 						break;
 
 					case 'MPPT':
-						this.stateSetCreate(deviceId, res[0], res[0], await this.get_mppt_mode(res[1]));
+						this.stateSetCreate(deviceId, res[0], res[0], this.get_mppt_mode(res[1]));
 						break;
 
 					case 'MON':
-						this.stateSetCreate(deviceId, res[0], res[0], await this.get_monitor_type(res[1]));
+						this.stateSetCreate(deviceId, res[0], res[0], this.get_monitor_type(res[1]));
 						break;
 
 					case 'DC_IN_V':
@@ -525,7 +525,7 @@ class Vedirect extends utils.Adapter {
 		}
 	}
 
-	async get_product_longname(pid) {
+	get_product_longname(pid) {
 		let name;
 		try {
 			name = ProductNames[pid].pid;
@@ -535,7 +535,7 @@ class Vedirect extends utils.Adapter {
 		return name;
 	}
 
-	async get_alarm_reason(ar) {
+	get_alarm_reason(ar) {
 		let name;
 		try {
 			name = AlarmReasons[ar].reason;
@@ -545,7 +545,7 @@ class Vedirect extends utils.Adapter {
 		return name;
 	}
 
-	async get_off_reason(or) {
+	get_off_reason(or) {
 		let name = null;
 		try {
 			name = OffReasons[or].reason;
@@ -555,7 +555,7 @@ class Vedirect extends utils.Adapter {
 		return name;
 	}
 
-	async get_cap_ble(ble) {
+	get_cap_ble(ble) {
 		let name;
 		try {
 			name = BleReasons[ble].reason;
@@ -565,7 +565,7 @@ class Vedirect extends utils.Adapter {
 		return name;
 	}
 
-	async get_cs_state(cs) {
+	get_cs_state(cs) {
 		let name;
 		try {
 			name = OperationStates[cs].state;
@@ -575,7 +575,7 @@ class Vedirect extends utils.Adapter {
 		return name;
 	}
 
-	async get_err_state(err) {
+	get_err_state(err) {
 		let name;
 		try {
 			name = ErrorNames[err].error;
@@ -585,7 +585,7 @@ class Vedirect extends utils.Adapter {
 		return name;
 	}
 
-	async get_device_mode(mode) {
+	get_device_mode(mode) {
 		let name;
 		try {
 			name = DeviceModes[mode].mode;
@@ -595,7 +595,7 @@ class Vedirect extends utils.Adapter {
 		return name;
 	}
 
-	async get_mppt_mode(mppt) {
+	get_mppt_mode(mppt) {
 		let name;
 		try {
 			name = MpptModes[mppt].mode;
@@ -605,7 +605,7 @@ class Vedirect extends utils.Adapter {
 		return name;
 	}
 
-	async get_monitor_type(monitortype) {
+	get_monitor_type(monitortype) {
 		let name;
 		try {
 			name = MonitorTypes[monitortype].type;
