@@ -37,16 +37,22 @@ The adapter currently uses the first configured device path as active serial con
 
 This adapter creates two object groups during startup:
 
-1. **Root telemetry states** (`vedirect.<instance>.<key>`)
-   - VE.Direct keys are discovered from incoming serial frames and created dynamically via `stateSetCreate(stateName, name, value)`.
+1. **Per-device telemetry states** (`vedirect.<instance>.devices.<normalizedDeviceId>.telemetry.<key>`)
+   - VE.Direct keys are discovered from incoming serial frames and created dynamically via `stateSetCreate(fullId, attrName, value)`.
    - Typical examples are `V` (battery voltage), `I` (battery current), `SOC` (state of charge), `VPV`, `PPV`, `CS`, `ERR`, etc.
-   - These telemetry states are created on demand at the adapter root (not inside `devices.*`).
+   - The adapter ensures `devices.<id>.telemetry` channels exist during startup before telemetry writes begin.
 
 2. **Per-device command channels** (`vedirect.<instance>.devices.<normalizedDeviceId>.commands.*`)
    - For every configured device path, the adapter creates command objects:
      - `...commands.setMode`
      - `...commands.setLoad`
    - This allows targeting commands by device ID, independent of root telemetry states.
+
+### Backward compatibility / migration note
+
+- **Breaking change:** telemetry is now written only to `devices.<id>.telemetry.<key>`.
+- Legacy root telemetry IDs (`vedirect.<instance>.<key>`) are no longer updated by default.
+- Existing scripts/visualizations should migrate to the new per-device telemetry path.
 
 ### Device ID normalization (`getDeviceId()`)
 
@@ -132,6 +138,7 @@ If a write is rejected by validation or the serial link is not writable, the ada
 * (leotronik) Added structured admin settings for up to 3 devices (`device1Path`, `device2Path`, `device3Path`) and removed the manual JSON editor from the config UI.
 * (leotronik) Added compatibility logic to keep legacy `USBDevice`/`devices` configurations working.
 * (leotronik) Bumped adapter version to `0.4.0`.
+* (leotronik) Refactored telemetry write path to `devices.<id>.telemetry.<key>` and documented migration from legacy root telemetry states.
 
 ### 0.4.0 (2026-04-06)
 * (leotronik) Structured instance settings for up to three devices without JSON editing.

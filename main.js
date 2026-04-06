@@ -107,7 +107,7 @@ class Vedirect extends utils.Adapter {
 				this.log.debug(`[Serial data received] ${data}`);
 				if (!bufferMessage) {
 					this.log.debug('Message buffer inactive, processing data');
-					this.parse_serial(data);
+					this.parse_serial(deviceId, data);
 					if (this.config.messageBuffer > 0) {
 						// Start the "message buffer" pause window after handling one line.
 						// During this window incoming lines are skipped intentionally
@@ -192,6 +192,7 @@ class Vedirect extends utils.Adapter {
 
 	async ensureCommandStates(deviceId) {
 		const deviceChannelId = `devices.${deviceId}`;
+		const telemetryChannelId = `${deviceChannelId}.telemetry`;
 		const commandsChannelId = `${deviceChannelId}.commands`;
 		this.commandChannelPrefixes.add(commandsChannelId);
 		await this.extendObject('devices', {
@@ -205,6 +206,13 @@ class Vedirect extends utils.Adapter {
 			type: 'channel',
 			common: {
 				name: `Device ${deviceId}`
+			},
+			native: {}
+		});
+		await this.extendObject(telemetryChannelId, {
+			type: 'channel',
+			common: {
+				name: `Telemetry for ${deviceId}`
 			},
 			native: {}
 		});
@@ -308,166 +316,167 @@ class Vedirect extends utils.Adapter {
 		}
 	}
 
-	async parse_serial(line) {
+	async parse_serial(deviceId, line) {
 		try {
 			this.log.debug('Line : ' + line);
 			// VE.Direct text protocol lines are tab separated:
 			// <KEY>\t<VALUE>
 			const res = line.split('\t');
+			const targetStateId = `devices.${deviceId}.telemetry.${res[0]}`;
 			if (stateAttr[res[0]] !== undefined) {
 				// Most values need unit conversion (e.g. mV -> V, mA -> A) or lookup
 				// to human-readable text before writing to ioBroker state tree.
 				switch (res[0]) {   // Used for special modifications to write a state with correct values and types
 					case 'CE':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'V':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'V2':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'V3':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'VS':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'VM':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'DM':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 10);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 10);
 						break;
 
 					case 'VPV':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'I':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'I2':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'I3':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'IL':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'SOC':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 10);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 10);
 						break;
 
 					case 'AR':
-						this.stateSetCreate(res[0], res[0], await this.get_alarm_reason(res[1]));
+						this.stateSetCreate(targetStateId, res[0], await this.get_alarm_reason(res[1]));
 						break;
 
 					case 'WARN':
-						this.stateSetCreate(res[0], res[0], await this.get_alarm_reason(res[1]));
+						this.stateSetCreate(targetStateId, res[0], await this.get_alarm_reason(res[1]));
 						break;
 
 					case 'OR':
-						this.stateSetCreate(res[0], res[0], await this.get_off_reason(res[1]));
+						this.stateSetCreate(targetStateId, res[0], await this.get_off_reason(res[1]));
 						break;
 
 					case 'H6':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'H7':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'H8':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'H15':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'H16':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 1000);
 						break;
 
 					case 'H17':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 100);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 100);
 						break;
 
 					case 'H18':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 100);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 100);
 						break;
 
 					case 'H19':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 100);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 100);
 						break;
 
 					case 'H20':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 100);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 100);
 						break;
 
 					case 'H22':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 100);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 100);
 						break;
 
 					case 'ERR':
-						this.stateSetCreate(res[0], res[0], await this.get_err_state(res[1]));
+						this.stateSetCreate(targetStateId, res[0], await this.get_err_state(res[1]));
 						break;
 
 					case 'CS':
-						this.stateSetCreate(res[0], res[0], await this.get_cs_state(res[1]));
+						this.stateSetCreate(targetStateId, res[0], await this.get_cs_state(res[1]));
 						break;
 
 					case 'PID':
-						this.stateSetCreate(res[0], res[0], await this.get_product_longname(res[1]));
+						this.stateSetCreate(targetStateId, res[0], await this.get_product_longname(res[1]));
 						break;
 
 					case 'MODE':
-						this.stateSetCreate(res[0], res[0], await this.get_device_mode(res[1]));
+						this.stateSetCreate(targetStateId, res[0], await this.get_device_mode(res[1]));
 						break;
 
 					case 'AC_OUT_V':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 100);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 100);
 						break;
 
 					case 'AC_OUT_I':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 10);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 10);
 						break;
 
 					case 'MPPT':
-						this.stateSetCreate(res[0], res[0], await this.get_mppt_mode(res[1]));
+						this.stateSetCreate(targetStateId, res[0], await this.get_mppt_mode(res[1]));
 						break;
 
 					case 'MON':
-						this.stateSetCreate(res[0], res[0], await this.get_monitor_type(res[1]));
+						this.stateSetCreate(targetStateId, res[0], await this.get_monitor_type(res[1]));
 						break;
 
 					case 'DC_IN_V':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 100);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 100);
 						break;
 
 					case 'DC_IN_I':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 10);
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]) / 10);
 						break;
 
 					case 'DC_IN_P':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]));
+						this.stateSetCreate(targetStateId, res[0], Math.floor(res[1]));
 						break;
 
 					default:    // Used for all other measure points with no required special handling
-						this.stateSetCreate(res[0], res[0], res[1]);
+						this.stateSetCreate(targetStateId, res[0], res[1]);
 						break;
 				}
 			}
@@ -591,43 +600,43 @@ class Vedirect extends utils.Adapter {
 	}
 
 	/**
-     * @param stateName {string} ID of the state
-     * @param name {string} Name of state (also used for stattAttrlib!)
+     * @param fullStateId {string} Full ID of the state
+     * @param attrName {string} Name of state (also used for stattAttrlib!)
      * @param value {boolean | number | string | null} Value of the state
      */
-	stateSetCreate(stateName, name, value) {
-		this.log.debug('[stateSetCreate]' + stateName + ' with value : ' + value);
+	stateSetCreate(fullStateId, attrName, value) {
+		this.log.debug('[stateSetCreate]' + fullStateId + ' with value : ' + value);
 		// const expireTime = 0;
 		try {
 			// Try to get details from state lib, if not use defaults. throw warning is states is not known in attribute list
 			const common = {};
-			if (!stateAttr[name]) {
-				const warnMessage = `State attribute definition missing for + ${name}`;
-				if (warnMessages[name] !== warnMessage) {
-					warnMessages[name] = warnMessage;
+			if (!stateAttr[attrName]) {
+				const warnMessage = `State attribute definition missing for + ${attrName}`;
+				if (warnMessages[attrName] !== warnMessage) {
+					warnMessages[attrName] = warnMessage;
 					// Send information to Sentry
 					this.sendSentry(warnMessage);
 				}
 			}
-			const createStateName = stateName;
-			this.log.debug('[stateSetCreate] state attribute from lib ' + JSON.stringify(stateAttr[name]));
-			common.name = stateAttr[name] !== undefined ? stateAttr[name].name || name : name;
-			common.type = stateAttr[name] !== undefined ? stateAttr[name].type || typeof (value) : typeof (value);
-			common.role = stateAttr[name] !== undefined ? stateAttr[name].role || 'state' : 'state';
+			const createStateName = fullStateId;
+			this.log.debug('[stateSetCreate] state attribute from lib ' + JSON.stringify(stateAttr[attrName]));
+			common.name = stateAttr[attrName] !== undefined ? stateAttr[attrName].name || attrName : attrName;
+			common.type = stateAttr[attrName] !== undefined ? stateAttr[attrName].type || typeof (value) : typeof (value);
+			common.role = stateAttr[attrName] !== undefined ? stateAttr[attrName].role || 'state' : 'state';
 			common.read = true;
-			common.unit = stateAttr[name] !== undefined ? stateAttr[name].unit || '' : '';
-			common.write = stateAttr[name] !== undefined ? stateAttr[name].write || false : false;
+			common.unit = stateAttr[attrName] !== undefined ? stateAttr[attrName].unit || '' : '';
+			common.write = stateAttr[attrName] !== undefined ? stateAttr[attrName].write || false : false;
 
-			if ((!this.createdStatesDetails[stateName]) || (this.createdStatesDetails[stateName] && (
-				common.name !== this.createdStatesDetails[stateName].name ||
-                    common.name !== this.createdStatesDetails[stateName].name ||
-                    common.type !== this.createdStatesDetails[stateName].type ||
-                    common.role !== this.createdStatesDetails[stateName].role ||
-                    common.read !== this.createdStatesDetails[stateName].read ||
-                    common.unit !== this.createdStatesDetails[stateName].unit ||
-                    common.write !== this.createdStatesDetails[stateName].write)
+			if ((!this.createdStatesDetails[fullStateId]) || (this.createdStatesDetails[fullStateId] && (
+				common.name !== this.createdStatesDetails[fullStateId].name ||
+                    common.name !== this.createdStatesDetails[fullStateId].name ||
+                    common.type !== this.createdStatesDetails[fullStateId].type ||
+                    common.role !== this.createdStatesDetails[fullStateId].role ||
+                    common.read !== this.createdStatesDetails[fullStateId].read ||
+                    common.unit !== this.createdStatesDetails[fullStateId].unit ||
+                    common.write !== this.createdStatesDetails[fullStateId].write)
 			)) {
-				this.log.debug(`[stateSetCreate] An attribute has changed for : ${stateName}`);
+				this.log.debug(`[stateSetCreate] An attribute has changed for : ${fullStateId}`);
 				// We only extend the object if metadata actually changed.
 				// This avoids frequent object-db writes on every telemetry line.
 
@@ -637,22 +646,22 @@ class Vedirect extends utils.Adapter {
 				});
 
 			} else {
-				this.log.debug(`[stateSetCreate] No attribute changes for : ${stateName}, processing normally`);
+				this.log.debug(`[stateSetCreate] No attribute changes for : ${fullStateId}, processing normally`);
 			}
 
 			// Store current object definition to memory
-			this.createdStatesDetails[stateName] = common;
+			this.createdStatesDetails[fullStateId] = common;
 
 			// Set value to state including expiration time
 			if (value != null) {
 				let expireTime = 0;
 				// Check if state should expire and expiration of states is active in config, if yes use preferred time
 				if (this.config.expireTime != null) {
-					if (stateAttr[name].expire != null) {
-						if (stateAttr[name].expire === true) {
+					if (stateAttr[attrName].expire != null) {
+						if (stateAttr[attrName].expire === true) {
 							expireTime = Number(this.config.expireTime);
 						}
-						if (stateAttr[name].expire === false) {
+						if (stateAttr[attrName].expire === false) {
 							expireTime = 0;
 						}
 					}
