@@ -28,7 +28,7 @@ const warnMessages = {}; // Array to avoid unneeded spam too sentry
 let bufferMessage = false;
 // Central timeout registry so we can clear timers on reconnect/unload.
 const timeouts = {};
-let polling, port;
+let polling;
 
 const disableSentry = true; // Ensure to set to true during development !
 
@@ -52,8 +52,11 @@ class Vedirect extends utils.Adapter {
 		this.commandChannelPrefixes = new Set();
 		this.commandStateDefinitions = [];
 		this.lastTelemetryAt = 0;
+		this.devicePorts = new Map();
+		this.devicePathById = new Map();
 		this.commandWriter = new SerialCommandWriter(this, {
-			getPort: () => port,
+			getPortByDeviceId: (deviceId) => this.getPortByDeviceId(deviceId),
+			getPortPathByDeviceId: (deviceId) => this.devicePathById.get(deviceId),
 			getLastTelemetryAt: () => this.lastTelemetryAt,
 			minIntervalMs: 250,
 			telemetryQuietTimeMs: 100,
@@ -81,6 +84,7 @@ class Vedirect extends utils.Adapter {
 					continue;
 				}
 				processedDeviceIds.add(configuredDeviceId);
+				this.devicePathById.set(configuredDeviceId, configuredDevice.path);
 				await this.ensureCommandStates(configuredDeviceId);
 			}
 
@@ -89,18 +93,20 @@ class Vedirect extends utils.Adapter {
 			if (!USB_Device) {
 				throw new Error('No USB device configured. Please provide at least one device path in the instance settings.');
 			}
-			port = new SerialPort({
+			const primaryPort = new SerialPort({
 				path: USB_Device,
 				baudRate: 19200
 			});
+			this.devicePorts.set(deviceId, primaryPort);
+			this.devicePathById.set(deviceId, USB_Device);
 
-			port.on('error', (error) => {
+			primaryPort.on('error', (error) => {
 				this.log.error('Issue handling serial port connection : ' + JSON.stringify(error));
 				this.setState('info.connection', false, true);
 			});
 
 			// Open pipe and listen to parser to get data
-			const parser = port.pipe(new ReadlineParser({delimiter: '\r\n'}));
+			const parser = primaryPort.pipe(new ReadlineParser({delimiter: '\r\n'}));
 
 			parser.on('data', (data) => {
 				this.lastTelemetryAt = Date.now();
@@ -188,6 +194,10 @@ class Vedirect extends utils.Adapter {
 			.replace(/[^a-zA-Z0-9_-]/g, '_')
 			.replace(/_+/g, '_')
 			.replace(/^_+|_+$/g, '') || 'default';
+	}
+
+	getPortByDeviceId(deviceId) {
+		return this.devicePorts.get(deviceId);
 	}
 
 	async ensureCommandStates(deviceId) {
@@ -488,8 +498,11 @@ class Vedirect extends utils.Adapter {
 	onUnload(callback) {
 		this.setState('info.connection', false, true);
 		try {
-
-			port.close();
+			for (const serialPort of this.devicePorts.values()) {
+				serialPort.close();
+			}
+			this.devicePorts.clear();
+			this.devicePathById.clear();
 			this.log.info('VE.Direct terminated, all USB connections closed');
 			if (timeouts.mesageBuffer) {clearTimeout(timeouts.mesageBuffer); timeouts.mesageBuffer = null;}
 
