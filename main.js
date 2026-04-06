@@ -70,7 +70,7 @@ class Vedirect extends utils.Adapter {
 			const parser = port.pipe(new ReadlineParser({delimiter: '\r\n'}));
 
 			parser.on('data', (data) => {
-				this.log.debug(`[Serial data received] ${data}`)
+				this.log.debug(`[Serial data received] ${data}`);
 				if (!bufferMessage) {
 					this.log.debug(`Message buffer inactive, processing data`);
 					this.parse_serial(data);

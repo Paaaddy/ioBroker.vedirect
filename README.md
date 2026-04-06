@@ -24,6 +24,17 @@ Set the proper device (example /dev/ttyUSB0) in adapter config.
     ### __WORK IN PROGRESS__
 -->
 
+### __WORK IN PROGRESS__
+* (Codex) Remove unused runtime dependency `request`.
+* (Codex) Keep `lib/tools.js` for translation tooling (`gulp translate`) only and switch Google Translate endpoint to HTTPS.
+* (Codex) Update runtime/dev dependencies to current major/minor releases.
+* (Codex) **Breaking changes:**
+  * `serialport` updated from v11 to v13 (review native bindings and runtime compatibility before release).
+  * Release tooling packages `@alcalzone/release-script*` updated from v3 to v5.
+  * `eslint` updated from v8 to v10; legacy `.eslintrc` based workflows may require migration in downstream tooling.
+  * `typescript` updated from v5 to v6; stricter checks and compiler behavior changes may affect contributor workflows.
+  * `@types/node` updated to v25 and may expose newer Node.js API typings in editor/test tooling.
+
 ### 0.3.3 (2024-09-10)
 * (DutchmanNL) Repository checker compliance updates
 * (DutchmanNL) Update dependencies for Node.js 18+ compatibility
