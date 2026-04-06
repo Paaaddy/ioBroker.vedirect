@@ -24,7 +24,14 @@ project-specific additions.
 
 ### Configuration
 
-Set the proper device (example /dev/ttyUSB0) in adapter config.
+In the instance settings you can now configure up to **three** device paths directly (without JSON editing):
+
+- Device 1 path (required for operation)
+- Device 2 path (optional)
+- Device 3 path (optional)
+
+For backward compatibility, existing `USBDevice` and `devices` configurations are still read.
+The adapter currently uses the first configured device path as active serial connection.
 
 
 ## Supported write commands (VE.Direct TX)
@@ -71,9 +78,13 @@ If a write is rejected by validation or the serial link is not writable, the ada
 -->
 
 ### __WORK IN PROGRESS__
-* (leotronik) Added VE.Direct TX write command states (`setMode`, `setLoad`) including validation, allowlist, ack filter, queueing and write rate limiting.
-* (leotronik) Added per-device reconnect manager with dedicated health states for more robust USB recovery handling.
-* (leotronik) Improved state-change handling and merged current open maintenance updates from active branches/PRs.
+* (leotronik) Added structured admin settings for up to 3 devices (`device1Path`, `device2Path`, `device3Path`) and removed the manual JSON editor from the config UI.
+* (leotronik) Added compatibility logic to keep legacy `USBDevice`/`devices` configurations working.
+* (leotronik) Bumped adapter version to `0.4.0`.
+
+### 0.4.0 (2026-04-06)
+* (leotronik) Structured instance settings for up to three devices without JSON editing.
+* (leotronik) Updated metadata to version 0.4.0.
 
 #### Future topics
 * Add optional command retry/backoff strategy with configurable limits.

@@ -1,6 +1,6 @@
 {
   "name": "iobroker.vedirect",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "description": "Read VE.direct data from Victron devices",
   "author": {
     "name": "DutchmanNL",
