@@ -22,7 +22,11 @@ const BleReasons = require(__dirname + '/lib/BleReasons.js');
 const MonitorTypes = require(__dirname + '/lib/MonitorTypes.js');
 const {SerialCommandWriter, COMMAND_DEFINITIONS} = require(__dirname + '/lib/serialCommandWriter.js');
 const warnMessages = {}; // Array to avoid unneeded spam too sentry
+// Message throttling flag:
+// VE.Direct devices can stream many lines per second. When enabled in config,
+// we process one line and ignore the rest until the timeout ends.
 let bufferMessage = false;
+// Central timeout registry so we can clear timers on reconnect/unload.
 const timeouts = {};
 let polling, port;
 
@@ -96,6 +100,9 @@ class Vedirect extends utils.Adapter {
 					this.log.debug('Message buffer inactive, processing data');
 					this.parse_serial(data);
 					if (this.config.messageBuffer > 0) {
+						// Start the "message buffer" pause window after handling one line.
+						// During this window incoming lines are skipped intentionally
+						// to reduce CPU usage and state-update noise.
 						this.log.debug(`Activate Message buffer with delay of ${this.config.messageBuffer * 1000}`);
 						bufferMessage = true;
 						if (timeouts.mesageBuffer) {clearTimeout(timeouts.mesageBuffer); timeouts.mesageBuffer = null;}
@@ -283,8 +290,12 @@ class Vedirect extends utils.Adapter {
 	async parse_serial(line) {
 		try {
 			this.log.debug('Line : ' + line);
+			// VE.Direct text protocol lines are tab separated:
+			// <KEY>\t<VALUE>
 			const res = line.split('\t');
 			if (stateAttr[res[0]] !== undefined) {
+				// Most values need unit conversion (e.g. mV -> V, mA -> A) or lookup
+				// to human-readable text before writing to ioBroker state tree.
 				switch (res[0]) {   // Used for special modifications to write a state with correct values and types
 					case 'CE':
 						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
@@ -596,6 +607,8 @@ class Vedirect extends utils.Adapter {
                     common.write !== this.createdStatesDetails[stateName].write)
 			)) {
 				this.log.debug(`[stateSetCreate] An attribute has changed for : ${stateName}`);
+				// We only extend the object if metadata actually changed.
+				// This avoids frequent object-db writes on every telemetry line.
 
 				this.extendObject(createStateName, {
 					type: 'state',
