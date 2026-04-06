@@ -41,6 +41,10 @@ class Vedirect extends utils.Adapter {
 		// this.on('message', this.onMessage.bind(this));
 		this.on('unload', this.onUnload.bind(this));
 		this.createdStatesDetails = {}; //  Array to store state objects to avoid unneeded object changes
+		this.pendingStateMetadataUpdates = new Map();
+		this.metadataFlushTimer = null;
+		this.metadataFlushIntervalMs = 100;
+		this.metadataUpdateQueue = Promise.resolve();
 		this.commandChannelPrefix = '';
 		this.commandChannelPrefixes = new Set();
 		this.commandStateDefinitions = [];
@@ -510,6 +514,10 @@ class Vedirect extends utils.Adapter {
 				clearTimeout(timer);
 			}
 			this.deviceMessageBufferTimers.clear();
+			if (this.metadataFlushTimer) {
+				clearTimeout(this.metadataFlushTimer);
+				this.metadataFlushTimer = null;
+			}
 			this.deviceMessageBufferFlags.clear();
 			for (const serialPort of this.devicePorts.values()) {
 				if (serialPort && serialPort.isOpen) {
@@ -615,6 +623,55 @@ class Vedirect extends utils.Adapter {
 		return name;
 	}
 
+	isStateCommonDifferent(newCommon, existingCommon) {
+		if (!existingCommon) {
+			return true;
+		}
+		return newCommon.name !== existingCommon.name ||
+			newCommon.type !== existingCommon.type ||
+			newCommon.role !== existingCommon.role ||
+			newCommon.read !== existingCommon.read ||
+			newCommon.unit !== existingCommon.unit ||
+			newCommon.write !== existingCommon.write;
+	}
+
+	queueStateMetadataUpdate(stateId, common) {
+		const pendingCommon = this.pendingStateMetadataUpdates.get(stateId);
+		if (!pendingCommon || this.isStateCommonDifferent(common, pendingCommon)) {
+			this.pendingStateMetadataUpdates.set(stateId, common);
+		}
+
+		if (!this.metadataFlushTimer) {
+			this.metadataFlushTimer = setTimeout(() => {
+				this.metadataFlushTimer = null;
+				void this.flushStateMetadataUpdates();
+			}, this.metadataFlushIntervalMs);
+		}
+	}
+
+	flushStateMetadataUpdates() {
+		this.metadataUpdateQueue = this.metadataUpdateQueue
+			.then(async () => {
+				if (this.pendingStateMetadataUpdates.size === 0) {
+					return;
+				}
+				const updates = Array.from(this.pendingStateMetadataUpdates.entries());
+				this.pendingStateMetadataUpdates.clear();
+				for (const [stateId, common] of updates) {
+					this.log.debug(`[stateSetCreate] Flushing metadata update for : ${stateId}`);
+					await this.extendObject(stateId, {
+						type: 'state',
+						common
+					});
+				}
+			})
+			.catch((error) => {
+				this.sendSentry(`[flushStateMetadataUpdates] ${error}`);
+			});
+
+		return this.metadataUpdateQueue;
+	}
+
 	/**
      * @param stateName {string} ID of the state
      * @param name {string} Name of state (also used for stattAttrlib!)
@@ -643,24 +700,9 @@ class Vedirect extends utils.Adapter {
 			common.unit = stateAttr[name] !== undefined ? stateAttr[name].unit || '' : '';
 			common.write = stateAttr[name] !== undefined ? stateAttr[name].write || false : false;
 
-			if ((!this.createdStatesDetails[createStateName]) || (this.createdStatesDetails[createStateName] && (
-				common.name !== this.createdStatesDetails[createStateName].name ||
-                    common.name !== this.createdStatesDetails[createStateName].name ||
-                    common.type !== this.createdStatesDetails[createStateName].type ||
-                    common.role !== this.createdStatesDetails[createStateName].role ||
-                    common.read !== this.createdStatesDetails[createStateName].read ||
-                    common.unit !== this.createdStatesDetails[createStateName].unit ||
-                    common.write !== this.createdStatesDetails[createStateName].write)
-			)) {
+			if (this.isStateCommonDifferent(common, this.createdStatesDetails[createStateName])) {
 				this.log.debug(`[stateSetCreate] An attribute has changed for : ${stateName}`);
-				// We only extend the object if metadata actually changed.
-				// This avoids frequent object-db writes on every telemetry line.
-
-				this.extendObject(createStateName, {
-					type: 'state',
-					common
-				});
-
+				this.queueStateMetadataUpdate(createStateName, common);
 			} else {
 				this.log.debug(`[stateSetCreate] No attribute changes for : ${stateName}, processing normally`);
 			}
