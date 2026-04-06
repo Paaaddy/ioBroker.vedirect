@@ -129,62 +129,13 @@ Write support depends on the connected Victron device and its firmware implement
 If a write is rejected by validation or the serial link is not writable, the adapter logs a clear error message.
 
 ## Changelog
-<!--
-    Placeholder for the next version (at the beginning of the line):
-    ### __WORK IN PROGRESS__
--->
 
-### __WORK IN PROGRESS__
-* (leotronik) Added structured admin settings for up to 3 devices (`device1Path`, `device2Path`, `device3Path`) and removed the manual JSON editor from the config UI.
-* (leotronik) Added compatibility logic to keep legacy `USBDevice`/`devices` configurations working.
-* (leotronik) Bumped adapter version to `0.4.0`.
+Release history has been moved to [`CHANGELOG.md`](./CHANGELOG.md) to keep this README concise and reduce merge conflicts between parallel PRs.
 
-### 0.4.0 (2026-04-06)
-* (leotronik) Structured instance settings for up to three devices without JSON editing.
-* (leotronik) Updated metadata to version 0.4.0.
-
-#### Future topics
-* Add optional command retry/backoff strategy with configurable limits.
-* Extend writable command coverage for additional Victron devices and VE.Direct TX commands.
-* Add diagnostics view (last write result, queue depth, reconnect counters) in admin UI.
-* Expand integration tests for disconnect/reconnect edge cases and command collision scenarios.
-
-### 0.3.3 (2024-09-10)
-* (DutchmanNL) Repository checker compliance updates
-* (DutchmanNL) Update dependencies for Node.js 18+ compatibility
-
-### 0.3.1 (2023-10-29)
-* (DutchmanNL) Message buffer implemented to avoid system overload
-
-### 0.3.0 (2023-08-07) - Support Protocol Version 3.33
-* (DutchmanNL) Bugfixes
-* ([Andiling](https://github.com/andiling)) Update to support Protocol Version 3.33
-
-### 0.2.0 (2023-08-06) - Implement protocol Version 3.32
-* (DutchmanNL) Code optimization
-* ([Andiling](https://github.com/andiling)) Add new product names of Vedirect
-* ([Andiling](https://github.com/andiling)) Add option to admin for state expiration
-* (DutchmanNL) Update dependencies * testing for NodeJS 18/20
-
-### 0.1.2 (2020-10-06)
-* (DutchmanNL) Fix sentry issue, error in opening USB-Port
-
-### 0.1.1
-* (DutchmanNL) Set state to NULL if no data received within 2 seconds.
-
-### 0.1.0
-* ([Andiling](https://github.com/andiling)) error in device modes corrected
-
-### 0.0.9
-* ([Andiling](https://github.com/andiling)) improve state attributes
-
-### 0.0.8
-* (DutchmanNL) set connection state to false when no data received for 10 seconds
-* (DutchmanNL & Andiling) reconnect to USB when connection lost
-* (DutchmanNL & Andiling) Update state attributes
-
-### 0.0.7
-* (DutchmanNL & [Andiling](https://github.com/andiling)) Alpha release
+### Latest release: 0.4.1 (2026-04-06)
+- Resolved open PR merge-conflict overlap by consolidating recent branch changes.
+- Added a standalone changelog file for cleaner release management.
+- Raised adapter version metadata to `0.4.1`.
 
 ## License
 MIT License
