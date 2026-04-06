@@ -24,6 +24,10 @@ const warnMessages = {}; // Array to avoid unneeded spam too sentry
 let bufferMessage = false;
 const timeouts = {};
 let polling, port;
+const NUM_DIV_1000_KEYS = new Set(['CE', 'V', 'V2', 'V3', 'VS', 'VM', 'VPV', 'I', 'I2', 'I3', 'IL', 'H6', 'H7', 'H8', 'H15', 'H16']);
+const NUM_DIV_100_KEYS = new Set(['H17', 'H18', 'H19', 'H20', 'H22', 'AC_OUT_V', 'DC_IN_V']);
+const NUM_DIV_10_KEYS = new Set(['DM', 'SOC', 'AC_OUT_I', 'DC_IN_I']);
+const RAW_INT_KEYS = new Set(['DC_IN_P']);
 
 const disableSentry = true; // Ensure to set to true during development !
 
@@ -43,6 +47,21 @@ class Vedirect extends utils.Adapter {
 		// this.on('message', this.onMessage.bind(this));
 		this.on('unload', this.onUnload.bind(this));
 		this.createdStatesDetails = {}; //  Array to store state objects to avoid unneeded object changes
+		this.createdStates = new Set();
+		this.subscribedStates = new Set();
+		this.pendingStateUpdates = new Map();
+		this.flushTimer = null;
+		this.stateTransformers = {
+			AR: value => this.get_alarm_reason(value),
+			WARN: value => this.get_alarm_reason(value),
+			OR: value => this.get_off_reason(value),
+			ERR: value => this.get_err_state(value),
+			CS: value => this.get_cs_state(value),
+			PID: value => this.get_product_longname(value),
+			MODE: value => this.get_device_mode(value),
+			MPPT: value => this.get_mppt_mode(value),
+			MON: value => this.get_monitor_type(value),
+		};
 	}
 
 	/**
@@ -121,161 +140,9 @@ class Vedirect extends utils.Adapter {
 		try {
 			this.log.debug('Line : ' + line);
 			const res = line.split('\t');
-			if (stateAttr[res[0]] !== undefined) {
-				switch (res[0]) {   // Used for special modifications to write a state with correct values and types
-					case 'CE':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'V':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'V2':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'V3':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'VS':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'VM':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'DM':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 10);
-						break;
-
-					case 'VPV':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'I':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'I2':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'I3':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'IL':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'SOC':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 10);
-						break;
-
-					case 'AR':
-						this.stateSetCreate(res[0], res[0], await this.get_alarm_reason(res[1]));
-						break;
-
-					case 'WARN':
-						this.stateSetCreate(res[0], res[0], await this.get_alarm_reason(res[1]));
-						break;
-
-					case 'OR':
-						this.stateSetCreate(res[0], res[0], await this.get_off_reason(res[1]));
-						break;
-
-					case 'H6':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'H7':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'H8':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'H15':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'H16':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'H17':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 100);
-						break;
-
-					case 'H18':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 100);
-						break;
-
-					case 'H19':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 100);
-						break;
-
-					case 'H20':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 100);
-						break;
-
-					case 'H22':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 100);
-						break;
-
-					case 'ERR':
-						this.stateSetCreate(res[0], res[0], await this.get_err_state(res[1]));
-						break;
-
-					case 'CS':
-						this.stateSetCreate(res[0], res[0], await this.get_cs_state(res[1]));
-						break;
-
-					case 'PID':
-						this.stateSetCreate(res[0], res[0], await this.get_product_longname(res[1]));
-						break;
-
-					case 'MODE':
-						this.stateSetCreate(res[0], res[0], await this.get_device_mode(res[1]));
-						break;
-
-					case 'AC_OUT_V':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 100);
-						break;
-
-					case 'AC_OUT_I':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 10);
-						break;
-
-					case 'MPPT':
-						this.stateSetCreate(res[0], res[0], await this.get_mppt_mode(res[1]));
-						break;
-
-					case 'MON':
-						this.stateSetCreate(res[0], res[0], await this.get_monitor_type(res[1]));
-						break;
-
-					case 'DC_IN_V':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 100);
-						break;
-
-					case 'DC_IN_I':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]) / 10);
-						break;
-
-					case 'DC_IN_P':
-						this.stateSetCreate(res[0], res[0], Math.floor(res[1]));
-						break;
-
-					default:    // Used for all other measure points with no required special handling
-						this.stateSetCreate(res[0], res[0], res[1]);
-						break;
-				}
-			}
+			if (stateAttr[res[0]] === undefined) return;
+			const transformedValue = await this.transformStateValue(res[0], res[1]);
+			await this.stateSetCreate(res[0], res[0], transformedValue);
 
 
 		} catch (error) {
@@ -297,6 +164,10 @@ class Vedirect extends utils.Adapter {
 			port.close();
 			this.log.info('VE.Direct terminated, all USB connections closed');
 			if (timeouts['mesageBuffer']) {clearTimeout(timeouts['mesageBuffer']); timeouts['mesageBuffer'] = null;}
+			if (this.flushTimer) {
+				clearTimeout(this.flushTimer);
+				this.flushTimer = null;
+			}
 
 			callback();
 		} catch (e) {
@@ -400,51 +271,13 @@ class Vedirect extends utils.Adapter {
      * @param name {string} Name of state (also used for stattAttrlib!)
      * @param value {boolean | number | string | null} Value of the state
      */
-	stateSetCreate(stateName, name, value) {
+	async stateSetCreate(stateName, name, value) {
 		this.log.debug('[stateSetCreate]' + stateName + ' with value : ' + value);
 		// const expireTime = 0;
 		try {
-			// Try to get details from state lib, if not use defaults. throw warning is states is not known in attribute list
-			const common = {};
-			if (!stateAttr[name]) {
-				const warnMessage = `State attribute definition missing for + ${name}`;
-				if (warnMessages[name] !== warnMessage) {
-					warnMessages[name] = warnMessage;
-					// Send information to Sentry
-					this.sendSentry(warnMessage);
-				}
-			}
 			const createStateName = stateName;
-			this.log.debug('[stateSetCreate] state attribute from lib ' + JSON.stringify(stateAttr[name]));
-			common.name = stateAttr[name] !== undefined ? stateAttr[name].name || name : name;
-			common.type = stateAttr[name] !== undefined ? stateAttr[name].type || typeof (value) : typeof (value);
-			common.role = stateAttr[name] !== undefined ? stateAttr[name].role || 'state' : 'state';
-			common.read = true;
-			common.unit = stateAttr[name] !== undefined ? stateAttr[name].unit || '' : '';
-			common.write = stateAttr[name] !== undefined ? stateAttr[name].write || false : false;
-
-			if ((!this.createdStatesDetails[stateName]) || (this.createdStatesDetails[stateName] && (
-				common.name !== this.createdStatesDetails[stateName].name ||
-                    common.name !== this.createdStatesDetails[stateName].name ||
-                    common.type !== this.createdStatesDetails[stateName].type ||
-                    common.role !== this.createdStatesDetails[stateName].role ||
-                    common.read !== this.createdStatesDetails[stateName].read ||
-                    common.unit !== this.createdStatesDetails[stateName].unit ||
-                    common.write !== this.createdStatesDetails[stateName].write)
-			)) {
-				this.log.debug(`[stateSetCreate] An attribute has changed for : ${stateName}`);
-
-				this.extendObject(createStateName, {
-					type: 'state',
-					common
-				});
-
-			} else {
-				this.log.debug(`[stateSetCreate] No attribute changes for : ${stateName}, processing normally`);
-			}
-
-			// Store current object definition to memory
-			this.createdStatesDetails[stateName] = common;
+			const common = this.getStateCommon(name, value);
+			await this.ensureStateCreated(createStateName, common);
 
 			// Set value to state including expiration time
 			if (value != null) {
@@ -464,19 +297,83 @@ class Vedirect extends utils.Adapter {
 				if (common.type === 'number') {
 					value = parseFloat(value);
 				}
-				this.setStateChanged(createStateName, {
+				const stateUpdate = {
 					val: value,
 					ack: true,
 					expire: expireTime
-				});
+				};
+				this.queueStateUpdate(createStateName, stateUpdate);
 			}
 
-			// Subscribe on state changes if writable
-			common.write && this.subscribeStates(createStateName);
 			this.log.debug('[stateSetCreate] All createdStatesDetails' + JSON.stringify(this.createdStatesDetails));
 		} catch (error) {
 			this.sendSentry(`[stateSetCreate] ${error}`);
 		}
+	}
+
+	getStateCommon(name, value) {
+		const common = {};
+		if (!stateAttr[name]) {
+			const warnMessage = `State attribute definition missing for + ${name}`;
+			if (warnMessages[name] !== warnMessage) {
+				warnMessages[name] = warnMessage;
+				this.sendSentry(warnMessage);
+			}
+		}
+		this.log.debug('[stateSetCreate] state attribute from lib ' + JSON.stringify(stateAttr[name]));
+		common.name = stateAttr[name] !== undefined ? stateAttr[name].name || name : name;
+		common.type = stateAttr[name] !== undefined ? stateAttr[name].type || typeof (value) : typeof (value);
+		common.role = stateAttr[name] !== undefined ? stateAttr[name].role || 'state' : 'state';
+		common.read = true;
+		common.unit = stateAttr[name] !== undefined ? stateAttr[name].unit || '' : '';
+		common.write = stateAttr[name] !== undefined ? stateAttr[name].write || false : false;
+		return common;
+	}
+
+	async ensureStateCreated(stateName, common) {
+		if (this.createdStates.has(stateName)) return;
+
+		this.log.debug(`[stateSetCreate] Create state metadata for : ${stateName}`);
+		await this.extendObjectAsync(stateName, {
+			type: 'state',
+			common
+		});
+		this.createdStates.add(stateName);
+		this.createdStatesDetails[stateName] = common;
+
+		if (common.write && !this.subscribedStates.has(stateName)) {
+			this.subscribeStates(stateName);
+			this.subscribedStates.add(stateName);
+		}
+	}
+
+	queueStateUpdate(stateName, stateUpdate) {
+		const coalesceInterval = Number(this.config.coalesceInterval || 0);
+		if (coalesceInterval > 0) {
+			this.pendingStateUpdates.set(stateName, stateUpdate);
+			if (!this.flushTimer) {
+				this.flushTimer = setTimeout(() => this.flushPendingStateUpdates(), coalesceInterval);
+			}
+			return;
+		}
+		this.setStateChanged(stateName, stateUpdate);
+	}
+
+	flushPendingStateUpdates() {
+		this.flushTimer = null;
+		for (const [stateName, stateUpdate] of this.pendingStateUpdates.entries()) {
+			this.setStateChanged(stateName, stateUpdate);
+		}
+		this.pendingStateUpdates.clear();
+	}
+
+	async transformStateValue(key, rawValue) {
+		if (NUM_DIV_1000_KEYS.has(key)) return Math.floor(rawValue) / 1000;
+		if (NUM_DIV_100_KEYS.has(key)) return Math.floor(rawValue) / 100;
+		if (NUM_DIV_10_KEYS.has(key)) return Math.floor(rawValue) / 10;
+		if (RAW_INT_KEYS.has(key)) return Math.floor(rawValue);
+		if (this.stateTransformers[key]) return this.stateTransformers[key](rawValue);
+		return rawValue;
 	}
 
 	errorHandler(source, error, debugMode) {
