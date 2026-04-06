@@ -65,12 +65,17 @@ class Vedirect extends utils.Adapter {
 		this.setState('info.connection', false, true);
 
 		try {
-			const deviceId = this.getDeviceId();
+			const configuredDevices = this.getConfiguredDevices();
+			const primaryDevice = configuredDevices[0];
+			const deviceId = this.getDeviceId(primaryDevice ? primaryDevice.path : undefined);
 			this.commandChannelPrefix = `devices.${deviceId}.commands`;
 			await this.ensureCommandStates(deviceId);
 
 			// Open Serial port connection
-			const USB_Device = this.config.USBDevice;
+			const USB_Device = primaryDevice ? primaryDevice.path : this.config.USBDevice;
+			if (!USB_Device) {
+				throw new Error('No USB device configured. Please provide at least one device path in the instance settings.');
+			}
 			port = new SerialPort({
 				path: USB_Device,
 				baudRate: 19200
@@ -133,8 +138,36 @@ class Vedirect extends utils.Adapter {
 		}
 	}
 
-	getDeviceId() {
-		const usbPath = this.config.USBDevice || 'default';
+	getConfiguredDevices() {
+		const fromFields = [this.config.device1Path, this.config.device2Path, this.config.device3Path]
+			.map(path => typeof path === 'string' ? path.trim() : '')
+			.filter(path => !!path)
+			.map((path, index) => ({
+				id: `device${index + 1}`,
+				path
+			}));
+		if (fromFields.length > 0) {
+			return fromFields;
+		}
+		if (Array.isArray(this.config.devices) && this.config.devices.length > 0) {
+			return this.config.devices
+				.filter(device => device && typeof device.path === 'string' && device.path.trim())
+				.map((device, index) => ({
+					id: device.id || `device${index + 1}`,
+					path: device.path.trim()
+				}));
+		}
+		if (typeof this.config.USBDevice === 'string' && this.config.USBDevice.trim()) {
+			return [{
+				id: 'device1',
+				path: this.config.USBDevice.trim()
+			}];
+		}
+		return [];
+	}
+
+	getDeviceId(pathOverride) {
+		const usbPath = pathOverride || this.config.USBDevice || 'default';
 		return String(usbPath)
 			.replace(/[^a-zA-Z0-9_-]/g, '_')
 			.replace(/_+/g, '_')

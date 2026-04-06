@@ -1,8 +1,21 @@
 {
     "common": {
         "name": "vedirect",
-        "version": "0.3.3",
+        "version": "0.4.0",
         "news": {
+            "0.4.0": {
+                "en": "Added structured instance settings for up to three devices without JSON editing. Updated adapter metadata for version 0.4.0.",
+                "de": "Strukturierte Instanz-Einstellungen für bis zu drei Geräte ohne JSON-Bearbeitung hinzugefügt. Adapter-Metadaten auf Version 0.4.0 aktualisiert.",
+                "ru": "Добавлены структурированные настройки экземпляра для трех устройств без редактирования JSON. Метаданные адаптера обновлены до версии 0.4.0.",
+                "pt": "Adicionadas configurações estruturadas da instância para até três dispositivos sem edição JSON. Metadados do adaptador atualizados para versão 0.4.0.",
+                "nl": "Gestructureerde instantie-instellingen toegevoegd voor maximaal drie apparaten zonder JSON-bewerking. Adaptermetadata bijgewerkt naar versie 0.4.0.",
+                "fr": "Ajout de paramètres d'instance structurés pour jusqu'à trois appareils sans édition JSON. Métadonnées de l'adaptateur mises à jour vers la version 0.4.0.",
+                "it": "Aggiunte impostazioni istanza strutturate per un massimo di tre dispositivi senza modifica JSON. Metadati adattatore aggiornati alla versione 0.4.0.",
+                "es": "Se agregaron ajustes estructurados de instancia para hasta tres dispositivos sin editar JSON. Metadatos del adaptador actualizados a la versión 0.4.0.",
+                "pl": "Dodano ustrukturyzowane ustawienia instancji dla maksymalnie trzech urządzeń bez edycji JSON. Metadane adaptera zaktualizowano do wersji 0.4.0.",
+                "uk": "Додано структуровані налаштування екземпляра для трьох пристроїв без редагування JSON. Метадані адаптера оновлено до версії 0.4.0.",
+                "zh-cn": "新增结构化实例设置，最多可配置三个设备且无需编辑JSON。适配器元数据已更新到0.4.0版本。"
+            },
             "0.3.3": {
                 "en": "Repository checker compliance updates, dependencies updated for Node.js 18+ compatibility",
                 "de": "Repository Checker Compliance-Updates, Abhängigkeiten für Node.js 18+ Kompatibilität aktualisiert",
@@ -159,7 +172,10 @@
         "devices": [],
         "expireTime": 0,
         "messageBuffer": 0,
-        "coalesceInterval": 0
+        "coalesceInterval": 0,
+        "device1Path": "",
+        "device2Path": "",
+        "device3Path": ""
     },
     "objects": [],
     "instanceObjects": [
