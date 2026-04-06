@@ -156,6 +156,7 @@
     "native": {
         "byUSB": true,
         "USBDevice": "",
+        "devices": [],
         "expireTime": 0,
         "messageBuffer": 0
     },

@@ -18,6 +18,21 @@
 	<script type="text/javascript" src="words.js"></script>
 
 	<script type="text/javascript">
+		function getDefaultDevicesFromLegacy(settings) {
+			if (!settings || !settings.USBDevice) {
+				return [];
+			}
+
+			return [{
+				id: 'device1',
+				path: settings.USBDevice,
+				baudRate: 19200,
+				enabled: true,
+				messageBuffer: Number(settings.messageBuffer) || 0,
+				expireTime: Number(settings.expireTime) || 0
+			}];
+		}
+
 		// This will be called by the admin adapter when the settings page loads
 		function load(settings, onChange) {
 			// example: select elements with id=key and class=value and insert value
@@ -38,6 +53,12 @@
 						;
 				}
 			});
+
+			const devices = Array.isArray(settings.devices) ? settings.devices : getDefaultDevicesFromLegacy(settings);
+			$('#devices').val(JSON.stringify(devices, null, 2))
+				.on('change', () => onChange())
+				.on('keyup', () => onChange());
+
 			onChange(false);
 			// reinitialize all the Materialize labels on the page if you are dynamically adding inputs:
 			if (M) M.updateTextFields();
@@ -55,6 +76,13 @@
 					obj[$this.attr('id')] = $this.val();
 				}
 			});
+			const devicesJson = $('#devices').val();
+			try {
+				obj.devices = devicesJson ? JSON.parse(devicesJson) : [];
+			} catch (error) {
+				showMessage(_('Invalid devices JSON. Please provide a valid array.'));
+				return;
+			}
 			callback(obj);
 		}
 	</script>
@@ -93,6 +121,14 @@
 				<label for="messageBuffer" class="translate">messageBuffer</label>
 			</div>
 
+		</div>
+
+		<div class="row">
+			<div class="input-field col s12">
+				<textarea id="devices" class="materialize-textarea"></textarea>
+				<label for="devices">devices (JSON Array)</label>
+				<span>Example: [{"id":"charger1","path":"/dev/ttyUSB0","enabled":true,"baudRate":19200,"messageBuffer":0,"expireTime":0}]</span>
+			</div>
 		</div>
 
 
