@@ -21,6 +21,7 @@ const MpptModes = require(__dirname + '/lib/MpptModes.js');
 const BleReasons = require(__dirname + '/lib/BleReasons.js');
 const MonitorTypes = require(__dirname + '/lib/MonitorTypes.js');
 const {SerialCommandWriter, COMMAND_DEFINITIONS} = require(__dirname + '/lib/serialCommandWriter.js');
+const { getConfiguredDevices: getConfiguredDevicesLib } = require(__dirname + '/lib/deviceConfig.js');
 const warnMessages = {}; // Array to avoid unneeded spam too sentry
 
 const disableSentry = true; // Ensure to set to true during development !
@@ -180,31 +181,7 @@ class Vedirect extends utils.Adapter {
 	}
 
 	getConfiguredDevices() {
-		const fromFields = [this.config.device1Path, this.config.device2Path, this.config.device3Path]
-			.map(path => typeof path === 'string' ? path.trim() : '')
-			.filter(path => !!path)
-			.map((path, index) => ({
-				id: `device${index + 1}`,
-				path
-			}));
-		if (fromFields.length > 0) {
-			return fromFields;
-		}
-		if (Array.isArray(this.config.devices) && this.config.devices.length > 0) {
-			return this.config.devices
-				.filter(device => device && typeof device.path === 'string' && device.path.trim())
-				.map((device, index) => ({
-					id: device.id || `device${index + 1}`,
-					path: device.path.trim()
-				}));
-		}
-		if (typeof this.config.USBDevice === 'string' && this.config.USBDevice.trim()) {
-			return [{
-				id: 'device1',
-				path: this.config.USBDevice.trim()
-			}];
-		}
-		return [];
+		return getConfiguredDevicesLib(this.config);
 	}
 
 	getDeviceId(pathOverride) {
