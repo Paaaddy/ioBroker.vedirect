@@ -1,7 +1,9 @@
 'use strict';
 const { expect } = require('chai');
 
-// Minimal mock adapter to test the logging contract without ioBroker runtime
+// NOTE: This test uses a mock adapter rather than the real Vedirect class
+// because the class requires the full ioBroker runtime. The mock's
+// errorHandler mirrors the production implementation — keep them in sync.
 function makeMockAdapter() {
     const logged = [];
     const sentryMessages = [];

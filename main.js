@@ -347,15 +347,12 @@ class Vedirect extends utils.Adapter {
 
 				this.stateSetCreate(deviceId, res[0], res[0], value);
 			}
-
-
 		} catch (error) {
-			this.log.error('Connection to VE.Direct device failed !');
+			this.log.error(`[parse_serial] Error processing VE.Direct data for ${deviceId}: ${error.message}`);
 			this.setState('info.connection', false, true);
 			this.errorHandler(error);
 		}
 	}
-
 
 	/**
      * Is called when adapter shuts down - callback has to be called under any circumstances!
