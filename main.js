@@ -17,7 +17,7 @@ const {SerialCommandWriter, COMMAND_DEFINITIONS} = require(__dirname + '/lib/ser
 const { getConfiguredDevices } = require(__dirname + '/lib/deviceConfig.js');
 const warnMessages = {}; // Array to avoid unneeded spam too sentry
 
-const disableSentry = true; // Ensure to set to true during development !
+const disableSentry = false; // Sentry error reporting enabled
 
 // Module-level constant for VE.Direct lookup-based fields
 const LOOKUP_KEYS = {
