@@ -100,8 +100,17 @@ class Vedirect extends utils.Adapter {
 			}
 			this.configuredDeviceIds = uniqueConfiguredDevices.map((device) => device.deviceId);
 
+			let anyOpened = false;
 			for (const configuredDevice of uniqueConfiguredDevices) {
-				await this.openDevicePort(configuredDevice.deviceId, configuredDevice.path);
+				try {
+					await this.openDevicePort(configuredDevice.deviceId, configuredDevice.path);
+					anyOpened = true;
+				} catch (error) {
+					this.log.error(`Failed to open device ${configuredDevice.deviceId} at ${configuredDevice.path}: ${error.message}`);
+				}
+			}
+			if (!anyOpened) {
+				throw new Error('No VE.Direct devices could be opened. Check device paths and permissions.');
 			}
 			this.startConnectionWatchdog();
 
