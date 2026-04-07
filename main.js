@@ -12,11 +12,25 @@ const utils = require('@iobroker/adapter-core');
 const {SerialPort, ReadlineParser} = require('serialport');
 const stateAttr = require(__dirname + '/lib/stateAttr.js');
 const { lookups } = require(__dirname + '/lib/lookups.js');
+const { convertValue } = require(__dirname + '/lib/converters.js');
 const {SerialCommandWriter, COMMAND_DEFINITIONS} = require(__dirname + '/lib/serialCommandWriter.js');
 const { getConfiguredDevices } = require(__dirname + '/lib/deviceConfig.js');
 const warnMessages = {}; // Array to avoid unneeded spam too sentry
 
 const disableSentry = true; // Ensure to set to true during development !
+
+// Module-level constant for VE.Direct lookup-based fields
+const LOOKUP_KEYS = {
+	'AR':   (res, lk) => lk.alarm_reason(res[1]),
+	'WARN': (res, lk) => lk.alarm_reason(res[1]),
+	'OR':   (res, lk) => lk.off_reason(res[1]),
+	'ERR':  (res, lk) => lk.err_state(res[1]),
+	'CS':   (res, lk) => lk.cs_state(res[1]),
+	'PID':  (res, lk) => lk.product_longname(res[1]),
+	'MODE': (res, lk) => lk.device_mode(res[1]),
+	'MPPT': (res, lk) => lk.mppt_mode(res[1]),
+	'MON':  (res, lk) => lk.monitor_type(res[1]),
+};
 
 class Vedirect extends utils.Adapter {
 	/**
@@ -318,156 +332,11 @@ class Vedirect extends utils.Adapter {
 			if (stateAttr[res[0]] !== undefined) {
 				// Most values need unit conversion (e.g. mV -> V, mA -> A) or lookup
 				// to human-readable text before writing to ioBroker state tree.
-				switch (res[0]) {   // Used for special modifications to write a state with correct values and types
-					case 'CE':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
+				const value = Object.prototype.hasOwnProperty.call(LOOKUP_KEYS, res[0])
+					? LOOKUP_KEYS[res[0]](res, lookups)
+					: convertValue(res[0], res[1]);
 
-					case 'V':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'V2':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'V3':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'VS':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'VM':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'DM':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 10);
-						break;
-
-					case 'VPV':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'I':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'I2':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'I3':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'IL':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'SOC':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 10);
-						break;
-
-					case 'AR':
-					case 'WARN':
-						this.stateSetCreate(deviceId, res[0], res[0], lookups.alarm_reason(res[1]));
-						break;
-
-					case 'OR':
-						this.stateSetCreate(deviceId, res[0], res[0], lookups.off_reason(res[1]));
-						break;
-
-					case 'H6':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'H7':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'H8':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'H15':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'H16':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'H17':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 100);
-						break;
-
-					case 'H18':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 100);
-						break;
-
-					case 'H19':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 100);
-						break;
-
-					case 'H20':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 100);
-						break;
-
-					case 'H22':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 100);
-						break;
-
-					case 'ERR':
-						this.stateSetCreate(deviceId, res[0], res[0], lookups.err_state(res[1]));
-						break;
-
-					case 'CS':
-						this.stateSetCreate(deviceId, res[0], res[0], lookups.cs_state(res[1]));
-						break;
-
-					case 'PID':
-						this.stateSetCreate(deviceId, res[0], res[0], lookups.product_longname(res[1]));
-						break;
-
-					case 'MODE':
-						this.stateSetCreate(deviceId, res[0], res[0], lookups.device_mode(res[1]));
-						break;
-
-					case 'AC_OUT_V':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 100);
-						break;
-
-					case 'AC_OUT_I':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 10);
-						break;
-
-					case 'MPPT':
-						this.stateSetCreate(deviceId, res[0], res[0], lookups.mppt_mode(res[1]));
-						break;
-
-					case 'MON':
-						this.stateSetCreate(deviceId, res[0], res[0], lookups.monitor_type(res[1]));
-						break;
-
-					case 'DC_IN_V':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 100);
-						break;
-
-					case 'DC_IN_I':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 10);
-						break;
-
-					case 'DC_IN_P':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]));
-						break;
-
-					default:    // Used for all other measure points with no required special handling
-						this.stateSetCreate(deviceId, res[0], res[0], res[1]);
-						break;
-				}
+				this.stateSetCreate(deviceId, res[0], res[0], value);
 			}
 
 
