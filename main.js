@@ -15,6 +15,7 @@ const { lookups } = require(__dirname + '/lib/lookups.js');
 const { convertValue } = require(__dirname + '/lib/converters.js');
 const {SerialCommandWriter, COMMAND_DEFINITIONS} = require(__dirname + '/lib/serialCommandWriter.js');
 const { getConfiguredDevices } = require(__dirname + '/lib/deviceConfig.js');
+const { validateDevicePath } = require(__dirname + '/lib/pathValidation.js');
 const warnMessages = {}; // Array to avoid unneeded spam too sentry
 
 const disableSentry = false; // Sentry error reporting enabled
@@ -122,6 +123,7 @@ class Vedirect extends utils.Adapter {
 	}
 
 	async openDevicePort(deviceId, path) {
+		validateDevicePath(deviceId, path, (msg) => this.log.warn(msg));
 		const serialPort = new SerialPort({
 			path,
 			baudRate: 19200
