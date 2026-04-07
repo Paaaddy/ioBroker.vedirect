@@ -640,7 +640,6 @@ class Vedirect extends utils.Adapter {
 
 			const metadataChanged = (!this.createdStatesDetails[createStateName]) || (this.createdStatesDetails[createStateName] && (
 				common.name !== this.createdStatesDetails[createStateName].name ||
-                    common.name !== this.createdStatesDetails[createStateName].name ||
                     common.type !== this.createdStatesDetails[createStateName].type ||
                     common.role !== this.createdStatesDetails[createStateName].role ||
                     common.read !== this.createdStatesDetails[createStateName].read ||
