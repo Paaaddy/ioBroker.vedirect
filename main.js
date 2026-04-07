@@ -16,6 +16,7 @@ const { convertValue } = require(__dirname + '/lib/converters.js');
 const {SerialCommandWriter, COMMAND_DEFINITIONS} = require(__dirname + '/lib/serialCommandWriter.js');
 const { getConfiguredDevices } = require(__dirname + '/lib/deviceConfig.js');
 const { validateDevicePath } = require(__dirname + '/lib/pathValidation.js');
+const { createReconnectScheduler } = require(__dirname + '/lib/reconnect.js');
 const warnMessages = {}; // Array to avoid unneeded spam too sentry
 
 const disableSentry = false; // Sentry error reporting enabled
@@ -58,6 +59,7 @@ class Vedirect extends utils.Adapter {
 		this.deviceMessageBufferTimers = new Map();
 		this.deviceLastTelemetryAt = new Map();
 		this.deviceConnectionStates = new Map();
+		this.deviceReconnectSchedulers = new Map();
 		this.deviceConnectionWatchdogInterval = null;
 		this.configuredDeviceIds = [];
 		this.commandWriter = new SerialCommandWriter(this, {
@@ -124,6 +126,13 @@ class Vedirect extends utils.Adapter {
 
 	async openDevicePort(deviceId, path) {
 		validateDevicePath(deviceId, path, (msg) => this.log.warn(msg));
+
+		if (!this.deviceReconnectSchedulers.has(deviceId)) {
+			this.deviceReconnectSchedulers.set(deviceId,
+				createReconnectScheduler(() => this.openDevicePort(deviceId, path)));
+		}
+		const scheduler = this.deviceReconnectSchedulers.get(deviceId);
+
 		const serialPort = new SerialPort({
 			path,
 			baudRate: 19200
@@ -136,14 +145,17 @@ class Vedirect extends utils.Adapter {
 			this.log.error(`Issue handling serial port connection for ${deviceId}: ${JSON.stringify(error)}`);
 			this.deviceConnectionStates.set(deviceId, false);
 			this.updateConnectionState();
+			scheduler.scheduleRetry();
 		});
 		serialPort.on('close', () => {
 			this.deviceConnectionStates.set(deviceId, false);
 			this.updateConnectionState();
+			scheduler.scheduleRetry();
 		});
 
 		const parser = serialPort.pipe(new ReadlineParser({delimiter: '\r\n'}));
 		parser.on('data', (data) => {
+			scheduler.cancel();
 			this.deviceLastTelemetryAt.set(deviceId, Date.now());
 			this.log.debug(`[Serial data received ${deviceId}] ${data}`);
 			if (!this.deviceMessageBufferFlags.get(deviceId)) {
@@ -172,6 +184,7 @@ class Vedirect extends utils.Adapter {
 			this.log.error(`Issue handling serial parser for ${deviceId}: ${JSON.stringify(error)}`);
 			this.deviceConnectionStates.set(deviceId, false);
 			this.updateConnectionState();
+			scheduler.scheduleRetry();
 		});
 	}
 
@@ -363,6 +376,10 @@ class Vedirect extends utils.Adapter {
 	onUnload(callback) {
 		this.setState('info.connection', false, true);
 		try {
+			for (const scheduler of this.deviceReconnectSchedulers.values()) {
+				scheduler.cancel();
+			}
+			this.deviceReconnectSchedulers.clear();
 			if (this.deviceConnectionWatchdogInterval) {
 				clearInterval(this.deviceConnectionWatchdogInterval);
 				this.deviceConnectionWatchdogInterval = null;
