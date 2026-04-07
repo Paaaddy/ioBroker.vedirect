@@ -318,6 +318,11 @@ class Vedirect extends utils.Adapter {
 			// VE.Direct text protocol lines are tab separated:
 			// <KEY>\t<VALUE>
 			const res = line.split('\t');
+			// Guard: VE.Direct lines without a tab separator (e.g. blank lines, checksum) are not key-value pairs
+			if (res.length < 2 || res[1] === undefined) {
+				this.log.debug(`[parse_serial] skipping non-KV line for ${deviceId}: ${line}`);
+				return;
+			}
 			if (stateAttr[res[0]] !== undefined) {
 				// Most values need unit conversion (e.g. mV -> V, mA -> A) or lookup
 				// to human-readable text before writing to ioBroker state tree.
