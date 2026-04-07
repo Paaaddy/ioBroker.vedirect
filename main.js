@@ -208,6 +208,10 @@ class Vedirect extends utils.Adapter {
 					this.deviceConnectionStates.set(deviceId, false);
 					this.updateConnectionState();
 					this.log.error(`No data received for 10 seconds on ${deviceId}, connection lost ?`);
+					const scheduler = this.deviceReconnectSchedulers.get(deviceId);
+					if (scheduler) {
+						scheduler.scheduleRetry();
+					}
 				}
 			}
 		}, 1000);
