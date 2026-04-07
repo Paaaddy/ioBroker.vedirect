@@ -191,6 +191,9 @@ class Vedirect extends utils.Adapter {
 	updateConnectionState() {
 		const isAnyDeviceConnected = Array.from(this.deviceConnectionStates.values()).some(Boolean);
 		this.setState('info.connection', isAnyDeviceConnected, true);
+		for (const [deviceId, isConnected] of this.deviceConnectionStates.entries()) {
+			this.setStateChanged(`devices.${deviceId}.info.connection`, isConnected, true);
+		}
 	}
 
 	startConnectionWatchdog() {
@@ -244,6 +247,24 @@ class Vedirect extends utils.Adapter {
 			type: 'channel',
 			common: {
 				name: `Commands for ${deviceId}`
+			},
+			native: {}
+		});
+		await this.extendObject(`${deviceChannelId}.info`, {
+			type: 'channel',
+			common: {
+				name: `Connection info for ${deviceId}`
+			},
+			native: {}
+		});
+		await this.extendObject(`${deviceChannelId}.info.connection`, {
+			type: 'state',
+			common: {
+				name: `Device ${deviceId} connected`,
+				type: 'boolean',
+				role: 'indicator.connected',
+				read: true,
+				write: false
 			},
 			native: {}
 		});
