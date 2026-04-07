@@ -11,15 +11,7 @@ const utils = require('@iobroker/adapter-core');
 // Load your modules here, e.g.:
 const {SerialPort, ReadlineParser} = require('serialport');
 const stateAttr = require(__dirname + '/lib/stateAttr.js');
-const ProductNames = require(__dirname + '/lib/ProductNames.js');
-const ErrorNames = require(__dirname + '/lib/ErrorNames.js');
-const AlarmReasons = require(__dirname + '/lib/AlarmReasons.js');
-const OperationStates = require(__dirname + '/lib/OperationStates.js');
-const OffReasons = require(__dirname + '/lib/OffReasons.js');
-const DeviceModes = require(__dirname + '/lib/DeviceModes.js');
-const MpptModes = require(__dirname + '/lib/MpptModes.js');
-const BleReasons = require(__dirname + '/lib/BleReasons.js');
-const MonitorTypes = require(__dirname + '/lib/MonitorTypes.js');
+const { lookups } = require(__dirname + '/lib/lookups.js');
 const {SerialCommandWriter, COMMAND_DEFINITIONS} = require(__dirname + '/lib/serialCommandWriter.js');
 const { getConfiguredDevices } = require(__dirname + '/lib/deviceConfig.js');
 const warnMessages = {}; // Array to avoid unneeded spam too sentry
@@ -380,15 +372,12 @@ class Vedirect extends utils.Adapter {
 						break;
 
 					case 'AR':
-						this.stateSetCreate(deviceId, res[0], res[0], this.get_alarm_reason(res[1]));
-						break;
-
 					case 'WARN':
-						this.stateSetCreate(deviceId, res[0], res[0], this.get_alarm_reason(res[1]));
+						this.stateSetCreate(deviceId, res[0], res[0], lookups.alarm_reason(res[1]));
 						break;
 
 					case 'OR':
-						this.stateSetCreate(deviceId, res[0], res[0], this.get_off_reason(res[1]));
+						this.stateSetCreate(deviceId, res[0], res[0], lookups.off_reason(res[1]));
 						break;
 
 					case 'H6':
@@ -432,19 +421,19 @@ class Vedirect extends utils.Adapter {
 						break;
 
 					case 'ERR':
-						this.stateSetCreate(deviceId, res[0], res[0], this.get_err_state(res[1]));
+						this.stateSetCreate(deviceId, res[0], res[0], lookups.err_state(res[1]));
 						break;
 
 					case 'CS':
-						this.stateSetCreate(deviceId, res[0], res[0], this.get_cs_state(res[1]));
+						this.stateSetCreate(deviceId, res[0], res[0], lookups.cs_state(res[1]));
 						break;
 
 					case 'PID':
-						this.stateSetCreate(deviceId, res[0], res[0], this.get_product_longname(res[1]));
+						this.stateSetCreate(deviceId, res[0], res[0], lookups.product_longname(res[1]));
 						break;
 
 					case 'MODE':
-						this.stateSetCreate(deviceId, res[0], res[0], this.get_device_mode(res[1]));
+						this.stateSetCreate(deviceId, res[0], res[0], lookups.device_mode(res[1]));
 						break;
 
 					case 'AC_OUT_V':
@@ -456,11 +445,11 @@ class Vedirect extends utils.Adapter {
 						break;
 
 					case 'MPPT':
-						this.stateSetCreate(deviceId, res[0], res[0], this.get_mppt_mode(res[1]));
+						this.stateSetCreate(deviceId, res[0], res[0], lookups.mppt_mode(res[1]));
 						break;
 
 					case 'MON':
-						this.stateSetCreate(deviceId, res[0], res[0], this.get_monitor_type(res[1]));
+						this.stateSetCreate(deviceId, res[0], res[0], lookups.monitor_type(res[1]));
 						break;
 
 					case 'DC_IN_V':
@@ -518,96 +507,6 @@ class Vedirect extends utils.Adapter {
 			callback();
 			this.sendSentry(`[onUnload] ${e}`);
 		}
-	}
-
-	get_product_longname(pid) {
-		let name;
-		try {
-			name = ProductNames[pid].pid;
-		} catch (error) {
-			name = 'unknown PID = ' + pid;
-		}
-		return name;
-	}
-
-	get_alarm_reason(ar) {
-		let name;
-		try {
-			name = AlarmReasons[ar].reason;
-		} catch (error) {
-			name = 'unknown alarm reason = ' + ar;
-		}
-		return name;
-	}
-
-	get_off_reason(or) {
-		let name = null;
-		try {
-			name = OffReasons[or].reason;
-		} catch (error) {
-			name = 'unknown off reason = ' + or;
-		}
-		return name;
-	}
-
-	get_cap_ble(ble) {
-		let name;
-		try {
-			name = BleReasons[ble].reason;
-		} catch (error) {
-			name = 'unknown BLE reason = ' + ble;
-		}
-		return name;
-	}
-
-	get_cs_state(cs) {
-		let name;
-		try {
-			name = OperationStates[cs].state;
-		} catch (error) {
-			name = 'unknown operation state = ' + cs;
-		}
-		return name;
-	}
-
-	get_err_state(err) {
-		let name;
-		try {
-			name = ErrorNames[err].error;
-		} catch (error) {
-			name = 'unknown error state = ' + err;
-		}
-		return name;
-	}
-
-	get_device_mode(mode) {
-		let name;
-		try {
-			name = DeviceModes[mode].mode;
-		} catch (error) {
-			name = 'unknown device mode = ' + mode;
-		}
-		return name;
-	}
-
-	get_mppt_mode(mppt) {
-		let name;
-		try {
-			name = MpptModes[mppt].mode;
-		} catch (error) {
-			name = 'unknown mppt mode = ' + mppt;
-		}
-		return name;
-	}
-
-	get_monitor_type(monitortype) {
-		let name;
-		try {
-			name = MonitorTypes[monitortype].type;
-		} catch (error) {
-			name = 'unknown monitor type = ' + monitortype;
-		}
-		return name;
 	}
 
 	/**
