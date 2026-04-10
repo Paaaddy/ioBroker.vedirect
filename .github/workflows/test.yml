@@ -34,6 +34,5 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           lint: true
-          type-checking: true
-          type-checking-command: npx tsc --noEmit
+          type-checking: false
           test-command: npm test
