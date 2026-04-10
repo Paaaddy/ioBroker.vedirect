@@ -8,14 +8,14 @@ Three workflows automate testing, dependency updates, and releases.
 
 Runs on every push or pull request to `main` (skips markdown and docs changes), and can be triggered manually via `workflow_dispatch`.
 
-- Installs dependencies (`npm ci`)
-- Runs linting (`npm run lint`)
-- Runs tests (`npm test`)
-- Matrix: Node.js 18, 20, 22
+- Cancels superseded runs for the same branch or pull request
+- Runs linting once on Node.js 22
+- Runs tests on Node.js 18, 20, and 22
+- Uses npm dependency caching via `actions/setup-node`
 
 ### Auto-merge Dependabot (`auto-merge.yml`)
 
-Runs on every pull request. If the author is `dependabot[bot]`, it auto-merges the PR based on update type:
+Runs on Dependabot pull request updates and enables GitHub auto-merge when the update qualifies:
 
 | Dependency type | Update type | Auto-merge? |
 |-----------------|-------------|-------------|
@@ -24,9 +24,18 @@ Runs on every pull request. If the author is `dependabot[bot]`, it auto-merges t
 | Development     | minor or below | Yes      |
 | Any             | major       | No          |
 
-### Release (`release.yml`)
+Branch protection still controls the final merge. This workflow only enables auto-merge for allowed updates.
 
-Triggered when a `v*` tag is pushed. Extracts the changelog section for that version from `CHANGELOG.md` and creates a GitHub Release with those notes.
+### Release Please (`release-please.yml`)
+
+Runs on code changes pushed to `main` and maintains the release PR.
+
+- Creates or updates a Release Please PR from conventional commits
+- Updates `CHANGELOG.md`, `package.json`, `package-lock.json`, and `io-package.json`
+- Creates the Git tag and GitHub Release when the release PR is merged
+- Supports an optional `RELEASE_PLEASE_TOKEN` secret so release PRs can trigger normal downstream checks
+
+If `RELEASE_PLEASE_TOKEN` is not configured, the workflow falls back to `GITHUB_TOKEN`.
 
 ---
 
@@ -38,9 +47,9 @@ flowchart TD
 
     DEV -->|push to main| CI
     DEV -->|open PR| CI
-    DEV -->|push vX.Y.Z tag| REL
+    DEV -->|merge conventional commits to main| REL
 
-    CI["CI\nlint + test\nNode 18 / 20 / 22"]
+    CI["CI\nlint once + test matrix\nNode 18 / 20 / 22"]
 
     subgraph PR flow
         BOT([Dependabot]) -->|opens PR| CI
@@ -49,8 +58,9 @@ flowchart TD
         AM -->|major / blocked| MANUAL[manual review]
     end
 
-    REL["Release workflow\nextract CHANGELOG section"]
-    REL --> GHR["GitHub Release\ncreated with notes"]
+    REL["Release Please\nopen/update release PR"]
+    REL --> RPR["Release PR\nversion + changelog updates"]
+    RPR --> GHR["Merge PR\ncreates tag + GitHub Release"]
 ```
 
 ---
