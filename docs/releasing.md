@@ -1,56 +1,27 @@
 # Releasing
 
-Releases are triggered by pushing a `v*` tag. The release workflow then creates a GitHub Release using the matching section from `CHANGELOG.md`.
+Releases are managed by `release-please` from conventional commits on `main`.
 
 ## Steps
 
-### 1. Update CHANGELOG.md
+### 1. Merge changes into `main`
 
-Add a new section at the top (below the `# Changelog` heading):
+Use conventional commits such as `feat:`, `fix:`, and `chore:` in the commits that land on `main`.
 
-```markdown
-## 0.5.0 (2026-04-10)
-- Short description of what changed.
-- Another change.
-```
+### 2. Wait for the Release PR
 
-The version number must match exactly what you'll tag.
+The `release-please.yml` workflow runs on every push to `main` and keeps a release PR up to date. That PR contains the generated `CHANGELOG.md` updates plus version bumps for:
 
-### 2. Bump the version
+- `package.json`
+- `package-lock.json`
+- `io-package.json`
 
-```sh
-npm version patch   # 0.4.1 → 0.4.2
-npm version minor   # 0.4.1 → 0.5.0
-npm version major   # 0.4.1 → 1.0.0
-```
+### 3. Merge the Release PR
 
-This updates `package.json` and creates a local git tag automatically.
-
-### 3. Commit and push
-
-```sh
-git add CHANGELOG.md package.json package-lock.json
-git commit -m "chore: release vX.Y.Z"
-git push origin main
-git push origin --tags
-```
-
-Pushing the tag triggers the Release workflow.
-
----
-
-## Quick one-liner
-
-```sh
-./scripts/release.sh patch   # or minor / major
-```
-
-This does all of the above except writing the CHANGELOG — do that first.
-
----
+When you're ready to publish, merge the release PR. `release-please` then creates the Git tag and GitHub Release automatically.
 
 ## What happens next
 
-1. The `release.yml` workflow fires on the pushed tag
-2. It extracts the matching `## X.Y.Z` section from `CHANGELOG.md`
-3. A GitHub Release is created with those notes
+1. `release-please` calculates the next version from the conventional commits since the last release
+2. It updates `CHANGELOG.md` and the tracked version files
+3. Merging the release PR creates the `vX.Y.Z` tag and the GitHub Release

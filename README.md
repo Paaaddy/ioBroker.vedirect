@@ -2,7 +2,7 @@
 # ioBroker.vedirect
 
 [![CI](https://github.com/Paaaddy/ioBroker.vedirect/actions/workflows/ci.yml/badge.svg)](https://github.com/Paaaddy/ioBroker.vedirect/actions/workflows/ci.yml)
-[![Release](https://github.com/Paaaddy/ioBroker.vedirect/actions/workflows/release.yml/badge.svg)](https://github.com/Paaaddy/ioBroker.vedirect/actions/workflows/release.yml)
+[![Release](https://github.com/Paaaddy/ioBroker.vedirect/actions/workflows/release-please.yml/badge.svg)](https://github.com/Paaaddy/ioBroker.vedirect/actions/workflows/release-please.yml)
 [![GitHub release](https://img.shields.io/github/v/release/Paaaddy/ioBroker.vedirect)](https://github.com/Paaaddy/ioBroker.vedirect/releases)
 
 Reads live telemetry from **Victron Energy devices** (MPPT solar charge controllers, BMV battery monitors, Phoenix inverters) over the **VE.Direct serial protocol** via a USB-to-serial cable.
@@ -21,6 +21,8 @@ The adapter creates ioBroker states for each field the device reports — batter
 - [Configuration](./docs/CONFIGURATION.md) — serial port setup, multi-device, troubleshooting
 - [Object model & startup behavior](./docs/OBJECT_MODEL.md) — state tree layout, telemetry migration
 - [Write commands (VE.Direct TX)](./docs/COMMANDS.md) — controlling device mode and load output
+- [GitHub Actions](./docs/github-actions.md) — CI, release, auto-merge, and Dependabot workflow details
+- [Releasing](./docs/releasing.md) — how versioning and publishing works with Release Please
 - [Changelog](./CHANGELOG.md)
 
 ## CI & Release
@@ -28,19 +30,33 @@ The adapter creates ioBroker states for each field the device reports — batter
 | Workflow | Triggers | Purpose |
 |---|---|---|
 | **CI** | Push / PR to `main` (code changes only) | Runs lint and tests on Node 18, 20, and 22. Skipped for markdown and docs-only changes. |
-| **Release** | Push of a `v*` tag (e.g. `v0.4.2`) | Creates a GitHub Release with the matching changelog section from `CHANGELOG.md`. |
+| **Release Please** | Push to `main` | Maintains a Release PR from conventional commits, updates `CHANGELOG.md`, `package.json`, and `io-package.json`, and creates the GitHub Release and tag when that PR is merged. |
 | **Auto-merge** | Dependabot pull requests | Automatically merges qualifying Dependabot updates after CI passes: patch updates for all deps, minor updates for dev deps, and security minor updates for prod deps. |
 | **Dependabot** | Weekly schedule | Opens PRs to update npm packages and GitHub Actions to their latest versions. |
 
-To cut a new release:
+## Create a New Version
+
+To publish a new version:
 
 ```sh
-# 1. Update CHANGELOG.md and bump version in package.json
-# 2. Commit your changes, then:
-git tag v0.4.2
-git push origin v0.4.2
-# The Release workflow will create the GitHub Release automatically.
+# 1. Merge your changes into main using conventional commits
+#    Examples: feat: add device discovery
+#              fix: handle reconnect race
+#
+# 2. Wait for Release Please to open or update the release PR
+#
+# 3. Review the generated version bump and changelog
+#
+# 4. Merge the release PR when you want to publish
+#
+# Release Please will update CHANGELOG.md, tag the release, and create the GitHub Release.
 ```
+
+Version bump behavior:
+
+- `fix:` creates a patch release
+- `feat:` creates a minor release
+- a breaking change (`feat!:` or `BREAKING CHANGE:`) creates a major release
 
 ## Fork notice
 
