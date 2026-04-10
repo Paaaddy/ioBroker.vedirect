@@ -31,7 +31,7 @@ The adapter creates ioBroker states for each field the device reports — batter
 |---|---|---|
 | **CI** | Push / PR to `main` (code changes only) | Runs lint and tests on Node 18, 20, and 22. Skipped for markdown and docs-only changes. |
 | **Release Please** | Push to `main` | Maintains a Release PR from conventional commits, updates `CHANGELOG.md`, `package.json`, and `io-package.json`, and creates the GitHub Release and tag when that PR is merged. |
-| **Auto-merge** | Dependabot pull requests | Automatically merges qualifying Dependabot updates after CI passes: patch updates for all deps, minor updates for dev deps, and security minor updates for prod deps. |
+| **Auto-merge** | Dependabot PRs and labeled Release Please PRs | Automatically merges qualifying Dependabot updates after CI passes. Release Please PRs stay manual unless labeled `automerge-release`, in which case GitHub auto-merges them after required checks pass. |
 | **Dependabot** | Weekly schedule | Opens PRs to update npm packages and GitHub Actions to their latest versions. |
 
 ## Create a New Version
@@ -46,6 +46,8 @@ To publish a new version:
 # 2. Wait for Release Please to open or update the release PR
 #
 # 3. Review the generated version bump and changelog
+#    Optional: add label "automerge-release" to let GitHub merge it automatically
+#    after required checks pass and if there is no merge conflict
 #
 # 4. Merge the release PR when you want to publish
 #

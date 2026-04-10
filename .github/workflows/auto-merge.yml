@@ -1,8 +1,8 @@
-name: Auto-merge Dependabot
+name: Auto-merge
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
 
 permissions:
   contents: write
@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  auto-merge:
+  dependabot-auto-merge:
     runs-on: ubuntu-latest
     if: github.actor == 'dependabot[bot]' && !github.event.pull_request.draft
     steps:
@@ -32,6 +32,20 @@ jobs:
            steps.meta.outputs.dependency-type == 'direct:development') ||
           (steps.meta.outputs.update-type == 'version-update:semver-minor' &&
            steps.meta.outputs.alert-state == 'OPEN')
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release-please-auto-merge:
+    runs-on: ubuntu-latest
+    if: |
+      !github.event.pull_request.draft &&
+      github.event.pull_request.user.login == 'github-actions[bot]' &&
+      startsWith(github.event.pull_request.title, 'chore(main): release ') &&
+      contains(join(github.event.pull_request.labels.*.name, ','), 'automerge-release')
+    steps:
+      - name: Enable auto-merge for labeled release PRs
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}

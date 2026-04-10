@@ -13,9 +13,9 @@ Runs on every push or pull request to `main` (skips markdown and docs changes), 
 - Runs tests on Node.js 18, 20, and 22
 - Uses npm dependency caching via `actions/setup-node`
 
-### Auto-merge Dependabot (`auto-merge.yml`)
+### Auto-merge (`auto-merge.yml`)
 
-Runs on Dependabot pull request updates and enables GitHub auto-merge when the update qualifies:
+Runs on selected pull request updates and enables GitHub auto-merge in two cases:
 
 | Dependency type | Update type | Auto-merge? |
 |-----------------|-------------|-------------|
@@ -24,7 +24,13 @@ Runs on Dependabot pull request updates and enables GitHub auto-merge when the u
 | Development     | minor or below | Yes      |
 | Any             | major       | No          |
 
-Branch protection still controls the final merge. This workflow only enables auto-merge for allowed updates.
+Release Please PRs are different:
+
+- They do not auto-merge by default
+- Add the `automerge-release` label to a Release Please PR to enable GitHub auto-merge
+- GitHub will merge it only after all required checks pass and there are no merge conflicts
+
+Branch protection still controls the final merge. This workflow only enables auto-merge for allowed updates and labeled release PRs.
 
 ### Release Please (`release-please.yml`)
 
@@ -60,7 +66,10 @@ flowchart TD
 
     REL["Release Please\nopen/update release PR"]
     REL --> RPR["Release PR\nversion + changelog updates"]
-    RPR --> GHR["Merge PR\ncreates tag + GitHub Release"]
+    RPR -->|label: automerge-release| RAM["Auto-merge after checks"]
+    RPR -->|no label| MANREL[manual merge]
+    RAM --> GHR["Merge PR\ncreates tag + GitHub Release"]
+    MANREL --> GHR
 ```
 
 ---
