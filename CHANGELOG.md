@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.5.1](https://github.com/Paaaddy/ioBroker.vedirect/compare/v0.5.0...v0.5.1) (2026-04-10)
+
+
+### Bug Fixes
+
+* clarify ioBroker test harness comments ([93923dc](https://github.com/Paaaddy/ioBroker.vedirect/commit/93923dcd53c5435c113c42eac9728ef33d9bafb9))
+
 ## [0.5.0](https://github.com/Paaaddy/ioBroker.vedirect/compare/v0.4.1...v0.5.0) (2026-04-10)
 
 
