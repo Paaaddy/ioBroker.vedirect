@@ -16,7 +16,7 @@ The `release-please.yml` workflow runs on every push to `main` and keeps a relea
 - `package-lock.json`
 - `io-package.json`
 
-For best results, configure a `RELEASE_PLEASE_TOKEN` repository secret backed by a PAT or GitHub App token. That allows the release PR to trigger the normal PR checks. If the secret is missing, the workflow falls back to `GITHUB_TOKEN`.
+Configure a `RELEASE_PLEASE_TOKEN` repository secret backed by a PAT or GitHub App token. That allows the release PR to trigger the normal PR checks. The workflow requires this secret and should fail if it is missing or invalid.
 
 ### 3. Merge the Release PR
 

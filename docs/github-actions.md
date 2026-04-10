@@ -33,9 +33,9 @@ Runs on code changes pushed to `main` and maintains the release PR.
 - Creates or updates a Release Please PR from conventional commits
 - Updates `CHANGELOG.md`, `package.json`, `package-lock.json`, and `io-package.json`
 - Creates the Git tag and GitHub Release when the release PR is merged
-- Supports an optional `RELEASE_PLEASE_TOKEN` secret so release PRs can trigger normal downstream checks
+- Requires a `RELEASE_PLEASE_TOKEN` secret so release PRs can trigger normal downstream checks
 
-If `RELEASE_PLEASE_TOKEN` is not configured, the workflow falls back to `GITHUB_TOKEN`.
+If `RELEASE_PLEASE_TOKEN` is missing or invalid, the workflow should fail instead of silently falling back to `GITHUB_TOKEN`.
 
 ---
 
