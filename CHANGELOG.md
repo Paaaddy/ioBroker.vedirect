@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.5.2](https://github.com/Paaaddy/ioBroker.vedirect/compare/v0.5.1...v0.5.2) (2026-04-10)
+
+
+### Bug Fixes
+
+* normalize unit test harness spacing ([c3da231](https://github.com/Paaaddy/ioBroker.vedirect/commit/c3da231b29efafdca212dee5d04a08d67267f0e6))
+* trim integration test harness comment ([03e07fe](https://github.com/Paaaddy/ioBroker.vedirect/commit/03e07fed60609ad984a1c3f24dafb541fd17fcbc))
+
 ## [0.5.1](https://github.com/Paaaddy/ioBroker.vedirect/compare/v0.5.0...v0.5.1) (2026-04-10)
 
 
