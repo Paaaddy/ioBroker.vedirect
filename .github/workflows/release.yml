@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Sync translations
+        run: npm run translate
+
+      - name: Commit translation updates if needed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git diff --quiet admin/i18n/ || git commit -am "chore: sync translations for release"
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Extract changelog entry for this release
+        id: changelog
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          BODY=$(awk "/^## $VERSION /{found=1; next} found && /^## /{exit} found{print}" CHANGELOG.md)
+          EOF_MARKER=$(od -An -N6 -x /dev/urandom | tr -d ' ')
+          {
+            echo "BODY<<$EOF_MARKER"
+            echo "$BODY"
+            echo "$EOF_MARKER"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release v${{ steps.version.outputs.VERSION }}
+          body: ${{ steps.changelog.outputs.BODY }}
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.VERSION, '-') }}
