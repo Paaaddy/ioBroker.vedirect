@@ -61,7 +61,6 @@ class Vedirect extends utils.Adapter {
 		this.deviceConnectionStates = new Map();
 		this.deviceReconnectSchedulers = new Map();
 		this.deviceConnectionWatchdogInterval = null;
-		this.configuredDeviceIds = [];
 		this.commandWriter = new SerialCommandWriter(this, {
 			getPort: (deviceId) => this.devicePorts.get(deviceId),
 			getLastTelemetryAt: (deviceId) => this.deviceLastTelemetryAt.get(deviceId) || 0,
@@ -101,8 +100,6 @@ class Vedirect extends utils.Adapter {
 				});
 				await this.ensureCommandStates(configuredDeviceId);
 			}
-			this.configuredDeviceIds = uniqueConfiguredDevices.map((device) => device.deviceId);
-
 			let anyOpened = false;
 			for (const configuredDevice of uniqueConfiguredDevices) {
 				try {
