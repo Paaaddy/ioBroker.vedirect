@@ -5,9 +5,25 @@
 [![Release](https://github.com/Paaaddy/ioBroker.vedirect/actions/workflows/release.yml/badge.svg)](https://github.com/Paaaddy/ioBroker.vedirect/actions/workflows/release.yml)
 [![GitHub release](https://img.shields.io/github/v/release/Paaaddy/ioBroker.vedirect)](https://github.com/Paaaddy/ioBroker.vedirect/releases)
 
-Read VE.Direct data from Victron devices over a USB-to-serial connection.
+Reads live telemetry from **Victron Energy devices** (MPPT solar charge controllers, BMV battery monitors, Phoenix inverters) over the **VE.Direct serial protocol** via a USB-to-serial cable.
 
-## Workflows
+The adapter creates ioBroker states for each field the device reports — battery voltage, current, state of charge, solar power, error codes, and more — namespaced per device under `vedirect.<instance>.devices.<deviceId>.*`. Up to **three devices** can be connected per adapter instance.
+
+## Quick start
+
+1. Connect your Victron device via a VE.Direct USB cable.
+2. Open the adapter instance settings and enter the serial port path (e.g. `/dev/ttyUSB0`) for each device.
+3. Restart the adapter instance.
+4. Check the created states under `vedirect.<instance>.devices.*`.
+
+## Documentation
+
+- [Configuration](./docs/CONFIGURATION.md) — serial port setup, multi-device, troubleshooting
+- [Object model & startup behavior](./docs/OBJECT_MODEL.md) — state tree layout, telemetry migration
+- [Write commands (VE.Direct TX)](./docs/COMMANDS.md) — controlling device mode and load output
+- [Changelog](./CHANGELOG.md)
+
+## CI & Release
 
 | Workflow | Triggers | Purpose |
 |---|---|---|
@@ -17,12 +33,13 @@ Read VE.Direct data from Victron devices over a USB-to-serial connection.
 | **Dependabot** | Weekly schedule | Opens PRs to update npm packages and GitHub Actions to their latest versions. |
 
 To cut a new release:
+
 ```sh
 # 1. Update CHANGELOG.md and bump version in package.json
-# 2. Commit your changes
+# 2. Commit your changes, then:
 git tag v0.4.2
 git push origin v0.4.2
-# The Release workflow will pick up the tag and publish a GitHub Release automatically.
+# The Release workflow will create the GitHub Release automatically.
 ```
 
 ## Fork notice
@@ -31,23 +48,7 @@ This repository is maintained as a **fork by leotronik** and is based on:
 
 - [DrozmotiX/ioBroker.vedirect](https://github.com/DrozmotiX/ioBroker.vedirect)
 
-Because this is a fork-focused maintenance repository, npm package badges, Nodei graphics, and Travis links from the original project have been removed to avoid pointing to unrelated or outdated distribution/CI endpoints.
-
-## Documentation
-
-To keep this README focused, detailed operational documentation has been moved to dedicated files:
-
-- [Configuration](./docs/CONFIGURATION.md)
-- [Object model & startup behavior](./docs/OBJECT_MODEL.md)
-- [Write commands (VE.Direct TX)](./docs/COMMANDS.md)
-- [Changelog](./CHANGELOG.md)
-
-## Quick start
-
-1. Configure at least one serial device path in the adapter instance settings.
-2. Optionally configure up to two additional device paths.
-3. Restart the adapter instance.
-4. Check created states under `vedirect.<instance>.devices.*`.
+npm package badges, Nodei graphics, and Travis links from the original project have been removed to avoid pointing to unrelated or outdated endpoints.
 
 ## License
 
