@@ -1,14 +1,6 @@
 ![Logo](admin/vedirect.png)
 # ioBroker.vedirect
 
-[![NPM version](http://img.shields.io/npm/v/iobroker.vedirect.svg)](https://www.npmjs.com/package/iobroker.vedirect)
-[![Downloads](https://img.shields.io/npm/dm/iobroker.vedirect.svg)](https://www.npmjs.com/package/iobroker.vedirect)
-[![Dependency Status](https://img.shields.io/david/DrozmotiX/iobroker.vedirect.svg)](https://david-dm.org/DrozmotiX/iobroker.vedirect)
-[![Known Vulnerabilities](https://snyk.io/test/github/DrozmotiX/ioBroker.vedirect/badge.svg)](https://snyk.io/test/github/DrozmotiX/ioBroker.vedirect)
-
-[![NPM](https://nodei.co/npm/iobroker.vedirect.png?downloads=true)](https://nodei.co/npm/iobroker.vedirect/)
-
-**Tests:**: [![Travis-CI](http://img.shields.io/travis/DrozmotiX/ioBroker.vedirect/master.svg)](https://travis-ci.org/DrozmotiX/ioBroker.vedirect)
 
 ## vedirect adapter for ioBroker
 
