@@ -1,7 +1,29 @@
 ![Logo](admin/vedirect.png)
 # ioBroker.vedirect
 
+[![CI](https://github.com/Paaaddy/ioBroker.vedirect/actions/workflows/ci.yml/badge.svg)](https://github.com/Paaaddy/ioBroker.vedirect/actions/workflows/ci.yml)
+[![Release](https://github.com/Paaaddy/ioBroker.vedirect/actions/workflows/release.yml/badge.svg)](https://github.com/Paaaddy/ioBroker.vedirect/actions/workflows/release.yml)
+[![GitHub release](https://img.shields.io/github/v/release/Paaaddy/ioBroker.vedirect)](https://github.com/Paaaddy/ioBroker.vedirect/releases)
+
 Read VE.Direct data from Victron devices over a USB-to-serial connection.
+
+## Workflows
+
+| Workflow | Triggers | Purpose |
+|---|---|---|
+| **CI** | Push / PR to `main` (code changes only) | Runs lint and tests on Node 18, 20, and 22. Skipped for markdown and docs-only changes. |
+| **Release** | Push of a `v*` tag (e.g. `v0.4.2`) | Creates a GitHub Release with the matching changelog section from `CHANGELOG.md`. |
+| **Auto-merge** | Dependabot pull requests | Automatically merges qualifying Dependabot updates after CI passes: patch updates for all deps, minor updates for dev deps, and security minor updates for prod deps. |
+| **Dependabot** | Weekly schedule | Opens PRs to update npm packages and GitHub Actions to their latest versions. |
+
+To cut a new release:
+```sh
+# 1. Update CHANGELOG.md and bump version in package.json
+# 2. Commit your changes
+git tag v0.4.2
+git push origin v0.4.2
+# The Release workflow will pick up the tag and publish a GitHub Release automatically.
+```
 
 ## Fork notice
 
