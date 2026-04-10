@@ -1,7 +1,7 @@
 {
     "common": {
         "name": "vedirect",
-        "version": "0.4.1",
+        "version": "0.5.0",
         "news": {
             "0.4.1": {
                 "en": "Resolved pending merge conflicts by consolidating recent PR changes, added standalone CHANGELOG.md, and refreshed README release notes.",
