@@ -3,6 +3,12 @@
     "Leave empty or 0 to not expire states": "Leer lassen oder 0, um den Status nicht abzulaufen",
     "Please choose your preferred settings": "Bitte wählen Sie Ihre bevorzugten Einstellungen",
     "USBDevice": "USB-Geräteanschluss",
+    "device1Path": "Pfad Gerät 1",
+    "device2Path": "Pfad Gerät 2 (optional)",
+    "device3Path": "Pfad Gerät 3 (optional)",
     "expireTime": "Ablaufzeit der Zustände in Sekunden",
-    "messageBuffer": "Puffer in Sekunden, um Nachrichten zu ignorieren"
+    "fastStateInterval": "Schreibfenster für schnelle States (Sekunden)",
+    "messageBuffer": "Puffer in Sekunden, um Nachrichten zu ignorieren",
+    "normalStateInterval": "Schreibfenster für normale States (Sekunden)",
+    "slowStateInterval": "Schreibfenster für langsame States (Sekunden)"
 }

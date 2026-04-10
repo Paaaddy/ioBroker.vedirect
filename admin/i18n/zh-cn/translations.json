@@ -3,6 +3,12 @@
     "Leave empty or 0 to not expire states": "留空或 0 表示不过期状态",
     "Please choose your preferred settings": "请选择您喜欢的设置",
     "USBDevice": "USB设备端口",
+    "device1Path": "设备1路径",
+    "device2Path": "设备2路径（可选）",
+    "device3Path": "设备3路径（可选）",
     "expireTime": "状态的过期时间（以秒为单位）",
-    "messageBuffer": "以秒为单位进行缓冲以忽略消息"
+    "fastStateInterval": "快速状态写入窗口（秒）",
+    "messageBuffer": "以秒为单位进行缓冲以忽略消息",
+    "normalStateInterval": "普通状态写入窗口（秒）",
+    "slowStateInterval": "慢速状态写入窗口（秒）"
 }

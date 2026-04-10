@@ -1,8 +1,14 @@
 {
-    "Buffer messages in seconds to avoid system overload": "Buffer messages in seconds to avoid system overload",
-    "Leave empty or 0 to not expire states": "Leave empty or 0 to not expire states",
-    "Please choose your preferred settings": "Please choose your preferred settings",
-    "USBDevice": "USB device Port",
-    "expireTime": "Expiration time of states in seconds",
-    "messageBuffer": "Buffer in seconds to ignore messages"
+    "Buffer messages in seconds to avoid system overload": "Буферизує повідомлення за секунди, щоб уникнути перевантаження системи",
+    "Leave empty or 0 to not expire states": "Залиште порожнім або 0, щоб стани не закінчувалися",
+    "Please choose your preferred settings": "Виберіть бажані налаштування",
+    "USBDevice": "Порт пристрою USB",
+    "device1Path": "Пристрій 1 шлях",
+    "device2Path": "Шлях пристрою 2 (необов’язково)",
+    "device3Path": "Шлях пристрою 3 (необов’язково)",
+    "expireTime": "Час закінчення станів у секундах",
+    "fastStateInterval": "Вікно запису швидких станів (секунди)",
+    "messageBuffer": "Буфер за секунди, щоб ігнорувати повідомлення",
+    "normalStateInterval": "Вікно запису в нормальних станах (секунди)",
+    "slowStateInterval": "Вікно запису повільних станів (секунди)"
 }
