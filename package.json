@@ -1,6 +1,6 @@
 {
   "name": "iobroker.vedirect",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Read VE.direct data from Victron devices",
   "author": {
     "name": "DutchmanNL",
@@ -50,7 +50,7 @@
   },
   "main": "main.js",
   "scripts": {
-    "test:js": "mocha",
+    "test:js": "mocha 'test/**/*.test.js'",
     "test:package": "mocha test/package --exit",
     "test:unit": "mocha test/unit --exit",
     "test:integration": "mocha test/integration --exit",

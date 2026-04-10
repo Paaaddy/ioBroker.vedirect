@@ -1,8 +1,21 @@
 {
     "common": {
         "name": "vedirect",
-        "version": "0.4.0",
+        "version": "0.4.1",
         "news": {
+            "0.4.1": {
+                "en": "Resolved pending merge conflicts by consolidating recent PR changes, added standalone CHANGELOG.md, and refreshed README release notes.",
+                "de": "Offene Merge-Konflikte durch Zusammenführen aktueller PR-Änderungen gelöst, eigenständige CHANGELOG.md hinzugefügt und README-Release-Hinweise aktualisiert.",
+                "ru": "Решены конфликты слияния за счет объединения последних изменений PR, добавлен отдельный файл CHANGELOG.md и обновлены заметки о релизе в README.",
+                "pt": "Conflitos de merge pendentes resolvidos consolidando alterações recentes de PR, adicionado CHANGELOG.md separado e notas de versão do README atualizadas.",
+                "nl": "Openstaande mergeconflicten opgelost door recente PR-wijzigingen te combineren, een aparte CHANGELOG.md toegevoegd en release-opmerkingen in README bijgewerkt.",
+                "fr": "Conflits de fusion en attente résolus en consolidant les changements récents des PR, ajout d'un CHANGELOG.md autonome et mise à jour des notes de version du README.",
+                "it": "Risolti i conflitti di merge aperti consolidando le modifiche PR recenti, aggiunto CHANGELOG.md separato e aggiornate le note di rilascio nel README.",
+                "es": "Conflictos de fusión pendientes resueltos consolidando cambios recientes de PR, se agregó un CHANGELOG.md independiente y se actualizaron las notas de versión en README.",
+                "pl": "Rozwiązano oczekujące konflikty scalania poprzez konsolidację ostatnich zmian z PR, dodano osobny CHANGELOG.md i zaktualizowano informacje o wydaniu w README.",
+                "uk": "Вирішено відкриті конфлікти злиття шляхом консолідації останніх змін PR, додано окремий файл CHANGELOG.md та оновлено примітки до випуску в README.",
+                "zh-cn": "通过整合近期PR更改解决了待处理的合并冲突，新增独立CHANGELOG.md，并更新了README发布说明。"
+            },
             "0.4.0": {
                 "en": "Added structured instance settings for up to three devices without JSON editing. Updated adapter metadata for version 0.4.0.",
                 "de": "Strukturierte Instanz-Einstellungen für bis zu drei Geräte ohne JSON-Bearbeitung hinzugefügt. Adapter-Metadaten auf Version 0.4.0 aktualisiert.",
@@ -172,6 +185,7 @@
         "devices": [],
         "expireTime": 0,
         "messageBuffer": 0,
+        "deepStateDiagnostics": false,
         "coalesceInterval": 0,
         "device1Path": "",
         "device2Path": "",

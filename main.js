@@ -11,19 +11,28 @@ const utils = require('@iobroker/adapter-core');
 // Load your modules here, e.g.:
 const {SerialPort, ReadlineParser} = require('serialport');
 const stateAttr = require(__dirname + '/lib/stateAttr.js');
-const ProductNames = require(__dirname + '/lib/ProductNames.js');
-const ErrorNames = require(__dirname + '/lib/ErrorNames.js');
-const AlarmReasons = require(__dirname + '/lib/AlarmReasons.js');
-const OperationStates = require(__dirname + '/lib/OperationStates.js');
-const OffReasons = require(__dirname + '/lib/OffReasons.js');
-const DeviceModes = require(__dirname + '/lib/DeviceModes.js');
-const MpptModes = require(__dirname + '/lib/MpptModes.js');
-const BleReasons = require(__dirname + '/lib/BleReasons.js');
-const MonitorTypes = require(__dirname + '/lib/MonitorTypes.js');
+const { lookups } = require(__dirname + '/lib/lookups.js');
+const { convertValue } = require(__dirname + '/lib/converters.js');
 const {SerialCommandWriter, COMMAND_DEFINITIONS} = require(__dirname + '/lib/serialCommandWriter.js');
+const { getConfiguredDevices } = require(__dirname + '/lib/deviceConfig.js');
+const { validateDevicePath } = require(__dirname + '/lib/pathValidation.js');
+const { createReconnectScheduler } = require(__dirname + '/lib/reconnect.js');
 const warnMessages = {}; // Array to avoid unneeded spam too sentry
 
-const disableSentry = true; // Ensure to set to true during development !
+const disableSentry = false; // Sentry error reporting enabled
+
+// Module-level constant for VE.Direct lookup-based fields
+const LOOKUP_KEYS = {
+	'AR':   (res, lk) => lk.alarm_reason(res[1]),
+	'WARN': (res, lk) => lk.alarm_reason(res[1]),
+	'OR':   (res, lk) => lk.off_reason(res[1]),
+	'ERR':  (res, lk) => lk.err_state(res[1]),
+	'CS':   (res, lk) => lk.cs_state(res[1]),
+	'PID':  (res, lk) => lk.product_longname(res[1]),
+	'MODE': (res, lk) => lk.device_mode(res[1]),
+	'MPPT': (res, lk) => lk.mppt_mode(res[1]),
+	'MON':  (res, lk) => lk.monitor_type(res[1]),
+};
 
 class Vedirect extends utils.Adapter {
 	/**
@@ -44,13 +53,14 @@ class Vedirect extends utils.Adapter {
 		this.commandChannelPrefix = '';
 		this.commandChannelPrefixes = new Set();
 		this.commandStateDefinitions = [];
+		this.commandStateById = new Map();
 		this.devicePorts = new Map();
-		this.devicePollingTimers = new Map();
 		this.deviceMessageBufferFlags = new Map();
 		this.deviceMessageBufferTimers = new Map();
 		this.deviceLastTelemetryAt = new Map();
 		this.deviceConnectionStates = new Map();
-		this.configuredDeviceIds = [];
+		this.deviceReconnectSchedulers = new Map();
+		this.deviceConnectionWatchdogInterval = null;
 		this.commandWriter = new SerialCommandWriter(this, {
 			getPort: (deviceId) => this.devicePorts.get(deviceId),
 			getLastTelemetryAt: (deviceId) => this.deviceLastTelemetryAt.get(deviceId) || 0,
@@ -90,11 +100,19 @@ class Vedirect extends utils.Adapter {
 				});
 				await this.ensureCommandStates(configuredDeviceId);
 			}
-			this.configuredDeviceIds = uniqueConfiguredDevices.map((device) => device.deviceId);
-
+			let anyOpened = false;
 			for (const configuredDevice of uniqueConfiguredDevices) {
-				await this.openDevicePort(configuredDevice.deviceId, configuredDevice.path);
+				try {
+					await this.openDevicePort(configuredDevice.deviceId, configuredDevice.path);
+					anyOpened = true;
+				} catch (error) {
+					this.log.error(`Failed to open device ${configuredDevice.deviceId} at ${configuredDevice.path}: ${error.message}`);
+				}
 			}
+			if (!anyOpened) {
+				throw new Error('No VE.Direct devices could be opened. Check device paths and permissions.');
+			}
+			this.startConnectionWatchdog();
 
 		} catch (error) {
 			this.log.error('Connection to VE.Direct device failed !');
@@ -104,25 +122,37 @@ class Vedirect extends utils.Adapter {
 	}
 
 	async openDevicePort(deviceId, path) {
+		validateDevicePath(deviceId, path, (msg) => this.log.warn(msg));
+
+		if (!this.deviceReconnectSchedulers.has(deviceId)) {
+			this.deviceReconnectSchedulers.set(deviceId,
+				createReconnectScheduler(() => this.openDevicePort(deviceId, path)));
+		}
+		const scheduler = this.deviceReconnectSchedulers.get(deviceId);
+
 		const serialPort = new SerialPort({
 			path,
 			baudRate: 19200
 		});
 		this.devicePorts.set(deviceId, serialPort);
 		this.deviceConnectionStates.set(deviceId, false);
+		this.deviceLastTelemetryAt.set(deviceId, 0);
 
 		serialPort.on('error', (error) => {
 			this.log.error(`Issue handling serial port connection for ${deviceId}: ${JSON.stringify(error)}`);
 			this.deviceConnectionStates.set(deviceId, false);
 			this.updateConnectionState();
+			scheduler.scheduleRetry();
 		});
 		serialPort.on('close', () => {
 			this.deviceConnectionStates.set(deviceId, false);
 			this.updateConnectionState();
+			scheduler.scheduleRetry();
 		});
 
 		const parser = serialPort.pipe(new ReadlineParser({delimiter: '\r\n'}));
 		parser.on('data', (data) => {
+			scheduler.cancel();
 			this.deviceLastTelemetryAt.set(deviceId, Date.now());
 			this.log.debug(`[Serial data received ${deviceId}] ${data}`);
 			if (!this.deviceMessageBufferFlags.get(deviceId)) {
@@ -145,55 +175,47 @@ class Vedirect extends utils.Adapter {
 			}
 			this.deviceConnectionStates.set(deviceId, true);
 			this.updateConnectionState();
-			if (this.devicePollingTimers.get(deviceId)) {
-				clearTimeout(this.devicePollingTimers.get(deviceId));
-			}
-			const pollingTimer = setTimeout(() => {
-				this.deviceConnectionStates.set(deviceId, false);
-				this.updateConnectionState();
-				this.log.error(`No data received for 10 seconds on ${deviceId}, connection lost ?`);
-			}, 10000);
-			this.devicePollingTimers.set(deviceId, pollingTimer);
 		});
 
 		parser.on('error', (error) => {
 			this.log.error(`Issue handling serial parser for ${deviceId}: ${JSON.stringify(error)}`);
 			this.deviceConnectionStates.set(deviceId, false);
 			this.updateConnectionState();
+			scheduler.scheduleRetry();
 		});
 	}
 
 	updateConnectionState() {
 		const isAnyDeviceConnected = Array.from(this.deviceConnectionStates.values()).some(Boolean);
 		this.setState('info.connection', isAnyDeviceConnected, true);
+		for (const [deviceId, isConnected] of this.deviceConnectionStates.entries()) {
+			this.setStateChanged(`devices.${deviceId}.info.connection`, isConnected, true);
+		}
+	}
+
+	startConnectionWatchdog() {
+		if (this.deviceConnectionWatchdogInterval) {
+			clearInterval(this.deviceConnectionWatchdogInterval);
+		}
+		this.deviceConnectionWatchdogInterval = setInterval(() => {
+			const now = Date.now();
+			for (const [deviceId, lastTelemetryAt] of this.deviceLastTelemetryAt.entries()) {
+				const isConnected = this.deviceConnectionStates.get(deviceId);
+				if (isConnected && now - lastTelemetryAt > 10000) {
+					this.deviceConnectionStates.set(deviceId, false);
+					this.updateConnectionState();
+					this.log.error(`No data received for 10 seconds on ${deviceId}, connection lost ?`);
+					const scheduler = this.deviceReconnectSchedulers.get(deviceId);
+					if (scheduler) {
+						scheduler.scheduleRetry();
+					}
+				}
+			}
+		}, 1000);
 	}
 
 	getConfiguredDevices() {
-		const fromFields = [this.config.device1Path, this.config.device2Path, this.config.device3Path]
-			.map(path => typeof path === 'string' ? path.trim() : '')
-			.filter(path => !!path)
-			.map((path, index) => ({
-				id: `device${index + 1}`,
-				path
-			}));
-		if (fromFields.length > 0) {
-			return fromFields;
-		}
-		if (Array.isArray(this.config.devices) && this.config.devices.length > 0) {
-			return this.config.devices
-				.filter(device => device && typeof device.path === 'string' && device.path.trim())
-				.map((device, index) => ({
-					id: device.id || `device${index + 1}`,
-					path: device.path.trim()
-				}));
-		}
-		if (typeof this.config.USBDevice === 'string' && this.config.USBDevice.trim()) {
-			return [{
-				id: 'device1',
-				path: this.config.USBDevice.trim()
-			}];
-		}
-		return [];
+		return getConfiguredDevices(this.config);
 	}
 
 	getDeviceId(pathOverride) {
@@ -226,6 +248,24 @@ class Vedirect extends utils.Adapter {
 			type: 'channel',
 			common: {
 				name: `Commands for ${deviceId}`
+			},
+			native: {}
+		});
+		await this.extendObject(`${deviceChannelId}.info`, {
+			type: 'channel',
+			common: {
+				name: `Connection info for ${deviceId}`
+			},
+			native: {}
+		});
+		await this.extendObject(`${deviceChannelId}.info.connection`, {
+			type: 'state',
+			common: {
+				name: `Device ${deviceId} connected`,
+				type: 'boolean',
+				role: 'indicator.connected',
+				read: true,
+				write: false
 			},
 			native: {}
 		});
@@ -275,6 +315,10 @@ class Vedirect extends utils.Adapter {
 			} else {
 				this.commandStateDefinitions.push(definition);
 			}
+			this.commandStateById.set(definition.id, {
+				command: definition.native.command,
+				deviceId
+			});
 			await this.extendObject(definition.id, {
 				type: 'state',
 				common: definition.common,
@@ -289,28 +333,26 @@ class Vedirect extends utils.Adapter {
 			return;
 		}
 
+		const shortId = id.startsWith(`${this.namespace}.`) ? id.slice(this.namespace.length + 1) : id;
 		const isKnownCommandPath = Array.from(this.commandChannelPrefixes).some((prefix) =>
-			id.startsWith(`${this.namespace}.${prefix}.`)
+			shortId.startsWith(`${prefix}.`)
 		);
 		if (!isKnownCommandPath) {
 			return;
 		}
 
-		const shortId = id.replace(`${this.namespace}.`, '');
-		const commandState = this.commandStateDefinitions.find((definition) => definition.id === shortId);
-		if (!commandState) {
+		const commandMetadata = this.commandStateById.get(shortId);
+		if (!commandMetadata) {
 			this.log.error(`Rejecting write to unknown command state ${shortId}`);
 			return;
 		}
 
-		const commandName = commandState.native.command;
+		const {command: commandName, deviceId} = commandMetadata;
 		if (!COMMAND_DEFINITIONS[commandName]) {
 			this.log.error(`Rejecting write for unsupported command ${commandName}`);
 			return;
 		}
 
-		const deviceMatch = shortId.match(/^devices\.([^.]*)\.commands\./);
-		const deviceId = deviceMatch ? deviceMatch[1] : this.getDeviceId();
 		try {
 			await this.commandWriter.enqueue(deviceId, commandName, state.val);
 			await this.setStateAsync(shortId, {
@@ -328,172 +370,26 @@ class Vedirect extends utils.Adapter {
 			// VE.Direct text protocol lines are tab separated:
 			// <KEY>\t<VALUE>
 			const res = line.split('\t');
+			// Guard: VE.Direct lines without a tab separator (e.g. blank lines, checksum) are not key-value pairs
+			if (res.length < 2 || res[1] === undefined) {
+				this.log.debug(`[parse_serial] skipping non-KV line for ${deviceId}: ${line}`);
+				return;
+			}
 			if (stateAttr[res[0]] !== undefined) {
 				// Most values need unit conversion (e.g. mV -> V, mA -> A) or lookup
 				// to human-readable text before writing to ioBroker state tree.
-				switch (res[0]) {   // Used for special modifications to write a state with correct values and types
-					case 'CE':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
+				const value = Object.prototype.hasOwnProperty.call(LOOKUP_KEYS, res[0])
+					? LOOKUP_KEYS[res[0]](res, lookups)
+					: convertValue(res[0], res[1]);
 
-					case 'V':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'V2':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'V3':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'VS':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'VM':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'DM':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 10);
-						break;
-
-					case 'VPV':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'I':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'I2':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'I3':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'IL':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'SOC':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 10);
-						break;
-
-					case 'AR':
-						this.stateSetCreate(deviceId, res[0], res[0], await this.get_alarm_reason(res[1]));
-						break;
-
-					case 'WARN':
-						this.stateSetCreate(deviceId, res[0], res[0], await this.get_alarm_reason(res[1]));
-						break;
-
-					case 'OR':
-						this.stateSetCreate(deviceId, res[0], res[0], await this.get_off_reason(res[1]));
-						break;
-
-					case 'H6':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'H7':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'H8':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'H15':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'H16':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 1000);
-						break;
-
-					case 'H17':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 100);
-						break;
-
-					case 'H18':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 100);
-						break;
-
-					case 'H19':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 100);
-						break;
-
-					case 'H20':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 100);
-						break;
-
-					case 'H22':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 100);
-						break;
-
-					case 'ERR':
-						this.stateSetCreate(deviceId, res[0], res[0], await this.get_err_state(res[1]));
-						break;
-
-					case 'CS':
-						this.stateSetCreate(deviceId, res[0], res[0], await this.get_cs_state(res[1]));
-						break;
-
-					case 'PID':
-						this.stateSetCreate(deviceId, res[0], res[0], await this.get_product_longname(res[1]));
-						break;
-
-					case 'MODE':
-						this.stateSetCreate(deviceId, res[0], res[0], await this.get_device_mode(res[1]));
-						break;
-
-					case 'AC_OUT_V':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 100);
-						break;
-
-					case 'AC_OUT_I':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 10);
-						break;
-
-					case 'MPPT':
-						this.stateSetCreate(deviceId, res[0], res[0], await this.get_mppt_mode(res[1]));
-						break;
-
-					case 'MON':
-						this.stateSetCreate(deviceId, res[0], res[0], await this.get_monitor_type(res[1]));
-						break;
-
-					case 'DC_IN_V':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 100);
-						break;
-
-					case 'DC_IN_I':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]) / 10);
-						break;
-
-					case 'DC_IN_P':
-						this.stateSetCreate(deviceId, res[0], res[0], Math.floor(res[1]));
-						break;
-
-					default:    // Used for all other measure points with no required special handling
-						this.stateSetCreate(deviceId, res[0], res[0], res[1]);
-						break;
-				}
+				this.stateSetCreate(deviceId, res[0], res[0], value);
 			}
-
-
 		} catch (error) {
-			this.log.error('Connection to VE.Direct device failed !');
+			this.log.error(`[parse_serial] Error processing VE.Direct data for ${deviceId}: ${error.message}`);
 			this.setState('info.connection', false, true);
 			this.errorHandler(error);
 		}
 	}
-
 
 	/**
      * Is called when adapter shuts down - callback has to be called under any circumstances!
@@ -502,10 +398,14 @@ class Vedirect extends utils.Adapter {
 	onUnload(callback) {
 		this.setState('info.connection', false, true);
 		try {
-			for (const timer of this.devicePollingTimers.values()) {
-				clearTimeout(timer);
+			for (const scheduler of this.deviceReconnectSchedulers.values()) {
+				scheduler.cancel();
 			}
-			this.devicePollingTimers.clear();
+			this.deviceReconnectSchedulers.clear();
+			if (this.deviceConnectionWatchdogInterval) {
+				clearInterval(this.deviceConnectionWatchdogInterval);
+				this.deviceConnectionWatchdogInterval = null;
+			}
 			for (const timer of this.deviceMessageBufferTimers.values()) {
 				clearTimeout(timer);
 			}
@@ -523,96 +423,6 @@ class Vedirect extends utils.Adapter {
 			callback();
 			this.sendSentry(`[onUnload] ${e}`);
 		}
-	}
-
-	async get_product_longname(pid) {
-		let name;
-		try {
-			name = ProductNames[pid].pid;
-		} catch (error) {
-			name = 'unknown PID = ' + pid;
-		}
-		return name;
-	}
-
-	async get_alarm_reason(ar) {
-		let name;
-		try {
-			name = AlarmReasons[ar].reason;
-		} catch (error) {
-			name = 'unknown alarm reason = ' + ar;
-		}
-		return name;
-	}
-
-	async get_off_reason(or) {
-		let name = null;
-		try {
-			name = OffReasons[or].reason;
-		} catch (error) {
-			name = 'unknown off reason = ' + or;
-		}
-		return name;
-	}
-
-	async get_cap_ble(ble) {
-		let name;
-		try {
-			name = BleReasons[ble].reason;
-		} catch (error) {
-			name = 'unknown BLE reason = ' + ble;
-		}
-		return name;
-	}
-
-	async get_cs_state(cs) {
-		let name;
-		try {
-			name = OperationStates[cs].state;
-		} catch (error) {
-			name = 'unknown operation state = ' + cs;
-		}
-		return name;
-	}
-
-	async get_err_state(err) {
-		let name;
-		try {
-			name = ErrorNames[err].error;
-		} catch (error) {
-			name = 'unknown error state = ' + err;
-		}
-		return name;
-	}
-
-	async get_device_mode(mode) {
-		let name;
-		try {
-			name = DeviceModes[mode].mode;
-		} catch (error) {
-			name = 'unknown device mode = ' + mode;
-		}
-		return name;
-	}
-
-	async get_mppt_mode(mppt) {
-		let name;
-		try {
-			name = MpptModes[mppt].mode;
-		} catch (error) {
-			name = 'unknown mppt mode = ' + mppt;
-		}
-		return name;
-	}
-
-	async get_monitor_type(monitortype) {
-		let name;
-		try {
-			name = MonitorTypes[monitortype].type;
-		} catch (error) {
-			name = 'unknown monitor type = ' + monitortype;
-		}
-		return name;
 	}
 
 	/**
@@ -643,15 +453,16 @@ class Vedirect extends utils.Adapter {
 			common.unit = stateAttr[name] !== undefined ? stateAttr[name].unit || '' : '';
 			common.write = stateAttr[name] !== undefined ? stateAttr[name].write || false : false;
 
-			if ((!this.createdStatesDetails[createStateName]) || (this.createdStatesDetails[createStateName] && (
+			const metadataChanged = (!this.createdStatesDetails[createStateName]) || (this.createdStatesDetails[createStateName] && (
 				common.name !== this.createdStatesDetails[createStateName].name ||
-                    common.name !== this.createdStatesDetails[createStateName].name ||
                     common.type !== this.createdStatesDetails[createStateName].type ||
                     common.role !== this.createdStatesDetails[createStateName].role ||
                     common.read !== this.createdStatesDetails[createStateName].read ||
                     common.unit !== this.createdStatesDetails[createStateName].unit ||
                     common.write !== this.createdStatesDetails[createStateName].write)
-			)) {
+			);
+
+			if (metadataChanged) {
 				this.log.debug(`[stateSetCreate] An attribute has changed for : ${stateName}`);
 				// We only extend the object if metadata actually changed.
 				// This avoids frequent object-db writes on every telemetry line.
@@ -667,6 +478,9 @@ class Vedirect extends utils.Adapter {
 
 			// Store current object definition to memory
 			this.createdStatesDetails[createStateName] = common;
+			if (this.config.deepStateDiagnostics === true && metadataChanged) {
+				this.log.debug(`[stateSetCreate] metadata updated for key: ${createStateName}`);
+			}
 
 			// Set value to state including expiration time
 			if (value != null) {
@@ -695,22 +509,15 @@ class Vedirect extends utils.Adapter {
 
 			// Subscribe on state changes if writable
 			common.write && this.subscribeStates(createStateName);
-			this.log.debug('[stateSetCreate] All createdStatesDetails' + JSON.stringify(this.createdStatesDetails));
 		} catch (error) {
 			this.sendSentry(`[stateSetCreate] ${error}`);
 		}
 	}
 
-	errorHandler(source, error, debugMode) {
-		let message = error;
-		if (error instanceof Error && error.stack != null) message = error.stack;
-		if (!debugMode) {
-			this.log.error(`${source} ${error}`);
-			this.sendSentry(`${message}`);
-		} else {
-			this.log.error(`${source} ${error}`);
-			this.log.debug(`${source} ${message}`);
-		}
+	errorHandler(error) {
+		const message = error instanceof Error ? (error.stack || error.message) : String(error);
+		this.log.error(`[errorHandler] ${message}`);
+		this.sendSentry(message);
 	}
 
 	/**
