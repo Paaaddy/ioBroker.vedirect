@@ -120,14 +120,37 @@ Write support depends on the connected Victron device and its firmware implement
 
 If a write is rejected by validation or the serial link is not writable, the adapter logs a clear error message.
 
+## GitHub Actions / CI
+
+| Workflow | Trigger | What it does |
+|---|---|---|
+| **CI** | Push / PR to `main` (code changes only) | Runs ESLint and tests on Node 18, 20, and 22. Skipped for markdown and docs-only changes. |
+| **Release Please** | Push to `main` | Reads conventional commits, maintains a release PR, updates `CHANGELOG.md` + `package.json` + `io-package.json`, and creates the GitHub Release + tag when that PR is merged. |
+| **Auto-merge** | PR events | Auto-merges qualifying Dependabot updates after CI passes. Release Please PRs auto-merge if labeled `automerge-release`. |
+| **Dependabot** | Weekly | Opens PRs to keep npm packages and GitHub Actions at their latest versions. |
+
+## Creating a new version
+
+This repository uses [Release Please](https://github.com/googleapis/release-please) for automated releases. Version numbers and the changelog are derived from [Conventional Commits](https://www.conventionalcommits.org/) on `main`.
+
+```
+# 1. Merge changes into main using conventional commits
+#    fix: handle reconnect race     → patch release (0.x.x → 0.x.x+1)
+#    feat: add device discovery     → minor release (0.x.0 → 0.x+1.0)
+#    feat!: rename state keys       → major release (x.0.0 → x+1.0.0)
+#
+# 2. Release Please opens (or updates) a release PR automatically
+#
+# 3. Review the generated version bump and CHANGELOG entry
+#    Optional: add label "automerge-release" to let GitHub merge it
+#    automatically after required checks pass
+#
+# 4. Merge the release PR to publish
+```
+
 ## Changelog
 
-Release history has been moved to [`CHANGELOG.md`](./CHANGELOG.md) to keep this README concise and reduce merge conflicts between parallel PRs.
-
-### Latest release: 0.4.1 (2026-04-06)
-- Resolved open PR merge-conflict overlap by consolidating recent branch changes.
-- Added a standalone changelog file for cleaner release management.
-- Raised adapter version metadata to `0.4.1`.
+Release history is in [`CHANGELOG.md`](./CHANGELOG.md).
 
 ## License
 MIT License
