@@ -130,6 +130,11 @@ class Vedirect extends utils.Adapter {
 		}
 		const scheduler = this.deviceReconnectSchedulers.get(deviceId);
 
+		const existingPort = this.devicePorts.get(deviceId);
+		if (existingPort && existingPort.isOpen) {
+			existingPort.close();
+		}
+
 		const serialPort = new SerialPort({
 			path,
 			baudRate: 19200
@@ -487,7 +492,7 @@ class Vedirect extends utils.Adapter {
 				let expireTime = 0;
 				// Check if state should expire and expiration of states is active in config, if yes use preferred time
 				if (this.config.expireTime != null) {
-					if (stateAttr[name].expire != null) {
+					if (stateAttr[name] && stateAttr[name].expire != null) {
 						if (stateAttr[name].expire === true) {
 							expireTime = Number(this.config.expireTime);
 						}
@@ -499,6 +504,10 @@ class Vedirect extends utils.Adapter {
 
 				if (common.type === 'number') {
 					value = parseFloat(value);
+					if (isNaN(value)) {
+						this.log.warn(`[stateSetCreate] Skipping NaN value for ${createStateName}: raw serial input was not a valid number`);
+						return;
+					}
 				}
 				this.setStateChanged(createStateName, {
 					val: value,
