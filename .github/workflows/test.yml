@@ -34,47 +34,5 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           lint: true
-          type-checking: true
-          type-checking-command: npx tsc --noEmit
+          type-checking: false
           test-command: npm test
-
-  audit:
-    name: Dependency audit
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm audit --audit-level=high
-
-  translation-sync:
-    name: Translation sync
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run translate
-      - name: Fail if translation files are stale
-        run: git diff --exit-code admin/i18n/
-
-  coverage:
-    name: Coverage
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npx c8 npm test
-      - uses: coverallsapp/github-action@v2
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}

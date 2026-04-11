@@ -1,0 +1,14 @@
+{
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "io-package.json",
+          "jsonpath": "$.common.version"
+        }
+      ]
+    }
+  }
+}

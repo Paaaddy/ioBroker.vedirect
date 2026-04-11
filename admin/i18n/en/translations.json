@@ -3,6 +3,12 @@
     "Leave empty or 0 to not expire states": "Leave empty or 0 to not expire states",
     "Please choose your preferred settings": "Please choose your preferred settings",
     "USBDevice": "USB device Port",
+    "device1Path": "Device 1 path",
+    "device2Path": "Device 2 path (optional)",
+    "device3Path": "Device 3 path (optional)",
     "expireTime": "Expiration time of states in seconds",
-    "messageBuffer": "Buffer in seconds to ignore messages"
+    "fastStateInterval": "Fast states write window (seconds)",
+    "messageBuffer": "Buffer in seconds to ignore messages",
+    "normalStateInterval": "Normal states write window (seconds)",
+    "slowStateInterval": "Slow states write window (seconds)"
 }

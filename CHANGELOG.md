@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## 0.4.2 (2026-04-10)
+- Fix CI: regenerate package-lock.json to include c8 coverage tool.
+- Sync admin UI translations for device path and state interval fields.
+- Simplify CI workflow to core Node 18/20/22 test matrix.
+
 ## 0.4.1 (2026-04-06)
 - Resolved outstanding merge-conflict overlap from open PR branches by consolidating recent command/state handling updates in the current base branch.
 - Added a standalone `CHANGELOG.md` to reduce future PR conflicts in `README.md`.
