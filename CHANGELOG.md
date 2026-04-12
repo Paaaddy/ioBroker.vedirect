@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [0.5.0](https://github.com/LeoTronick/ioBroker.vedirect/compare/iobroker.vedirect-v0.4.2...iobroker.vedirect-v0.5.0) (2026-04-11)
+## [0.5.0](https://github.com/LeoTronick/ioBroker.vedirect/compare/iobroker.vedirect-v0.4.2...iobroker.vedirect-v0.5.0) (2026-04-12)
 
 
 ### Features
@@ -20,6 +20,7 @@ All notable changes to this project are documented in this file.
 
 * continue opening remaining devices if one device fails to open ([16bab50](https://github.com/LeoTronick/ioBroker.vedirect/commit/16bab5074bb499685175bf410ce15a2fe53a2b9b))
 * ensure test/unit/*.test.js files are picked up by npm test ([2a86a3d](https://github.com/LeoTronick/ioBroker.vedirect/commit/2a86a3d0c1a3bcd253b044e20bc3258f6c5b3728))
+* guard stateAttr access, close port on reconnect, NaN filter, shutdown race ([69e8178](https://github.com/LeoTronick/ioBroker.vedirect/commit/69e8178a019c1802ad78026277736f258b9e6a94)), closes [#17](https://github.com/LeoTronick/ioBroker.vedirect/issues/17)
 * preserve device slot numbers in getConfiguredDevices after filter ([2265d8d](https://github.com/LeoTronick/ioBroker.vedirect/commit/2265d8dc6e8406c946a76f6268b04f3d8f0fc99d))
 * preserve float precision in convertValue (floor-then-divide, not divide-then-floor) ([052a995](https://github.com/LeoTronick/ioBroker.vedirect/commit/052a995c13431e9136514ad553b9c6db15b0ca85))
 * re-enable Sentry error reporting (was hardcoded disabled) ([670a751](https://github.com/LeoTronick/ioBroker.vedirect/commit/670a751b9360bd5e7b39f5cdcaf7f2077113efa7))
