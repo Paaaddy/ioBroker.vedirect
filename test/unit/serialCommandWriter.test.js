@@ -69,7 +69,7 @@ describe('SerialCommandWriter.enqueue', () => {
 	it('rejects unknown command name', async () => {
 		const w = new SerialCommandWriter(makeAdapter(), noDelayOptions(() => undefined));
 		let threw = false;
-		try { await w.enqueue('dev1', 'setVoltage', 12); } catch { threw = true; }
+		try { await w.enqueue('dev1', 'setVoltage', 12); } catch (_e) { threw = true; }
 		expect(threw).to.equal(true);
 	});
 });
@@ -80,7 +80,7 @@ describe('SerialCommandWriter.writeCommand', () => {
 	it('throws when port is undefined', async () => {
 		const w = new SerialCommandWriter(makeAdapter(), noDelayOptions(() => undefined));
 		let threw = false;
-		try { await w.writeCommand('dev1', 'setMode', 1); } catch { threw = true; }
+		try { await w.writeCommand('dev1', 'setMode', 1); } catch (_e) { threw = true; }
 		expect(threw).to.equal(true);
 	});
 
@@ -89,7 +89,7 @@ describe('SerialCommandWriter.writeCommand', () => {
 		port.writable = false;
 		const w = new SerialCommandWriter(makeAdapter(), noDelayOptions(() => port));
 		let threw = false;
-		try { await w.writeCommand('dev1', 'setMode', 1); } catch { threw = true; }
+		try { await w.writeCommand('dev1', 'setMode', 1); } catch (_e) { threw = true; }
 		expect(threw).to.equal(true);
 	});
 
