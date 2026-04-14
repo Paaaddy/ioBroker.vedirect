@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.5.1](https://github.com/LeoTronick/ioBroker.vedirect/compare/iobroker.vedirect-v0.5.0...iobroker.vedirect-v0.5.1) (2026-04-13)
+
+
+### Bug Fixes
+
+* **test:** replace optional catch binding for ES2018 compat ([d7a2f35](https://github.com/LeoTronick/ioBroker.vedirect/commit/d7a2f35c017c19a3cdaa0458aafcb7acccf3727f))
+* use googleapis/release-please-action to fix already_exists error ([1596cb8](https://github.com/LeoTronick/ioBroker.vedirect/commit/1596cb87ee9e90708231aaa02916e76f2392f09a))
+
+
+### Performance Improvements
+
+* reduce hot-path overhead and fix reconnect after cancel ([56c7a5a](https://github.com/LeoTronick/ioBroker.vedirect/commit/56c7a5ab0aaa0b063bd52bd859c81857fda74ef7))
+* reduce hot-path overhead and fix reconnect after cancel ([62be81d](https://github.com/LeoTronick/ioBroker.vedirect/commit/62be81deb090f916e01a7e6be16cb98df7098018))
+
 ## [0.5.0](https://github.com/LeoTronick/ioBroker.vedirect/compare/iobroker.vedirect-v0.4.2...iobroker.vedirect-v0.5.0) (2026-04-12)
 
 
