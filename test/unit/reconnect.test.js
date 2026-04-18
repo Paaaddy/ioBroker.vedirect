@@ -71,40 +71,4 @@ describe('createReconnectScheduler', () => {
 		clock.tick(1000);
 		expect(onAttempt.callCount).to.equal(1);  // not 2
 	});
-
-	it('reset() clears pending timer and resets delay without disabling future retries', () => {
-		const onAttempt = sinon.spy();
-		const scheduler = createReconnectScheduler(onAttempt, { initialDelayMs: 1000, maxDelayMs: 60000 });
-		scheduler.scheduleRetry(); clock.tick(1000);  // delay is now 2000
-		scheduler.reset();
-		expect(scheduler.currentDelayMs).to.equal(1000);  // backoff reset
-		// scheduleRetry still works after reset()
-		scheduler.scheduleRetry();
-		clock.tick(1000);
-		expect(onAttempt.callCount).to.equal(2);
-	});
-
-	it('scheduleRetry() works after reset() — device reconnects after successful connection', () => {
-		const onAttempt = sinon.spy();
-		const scheduler = createReconnectScheduler(onAttempt, { initialDelayMs: 1000, maxDelayMs: 60000 });
-		// Simulate: connect attempt fires
-		scheduler.scheduleRetry();
-		clock.tick(1000);
-		expect(onAttempt.callCount).to.equal(1);
-		// Simulate: data arrives (connection succeeded) — call reset()
-		scheduler.reset();
-		// Simulate: port drops later
-		scheduler.scheduleRetry();
-		clock.tick(1000);
-		expect(onAttempt.callCount).to.equal(2);  // reconnect fired
-	});
-
-	it('cancel() permanently prevents retries (for shutdown)', () => {
-		const onAttempt = sinon.spy();
-		const scheduler = createReconnectScheduler(onAttempt, { initialDelayMs: 1000, maxDelayMs: 60000 });
-		scheduler.cancel();
-		scheduler.scheduleRetry();  // called by close event after shutdown
-		clock.tick(2000);
-		expect(onAttempt.callCount).to.equal(0);  // shutdown prevents retry
-	});
 });

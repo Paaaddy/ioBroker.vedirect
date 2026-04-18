@@ -1,7 +1,7 @@
 {
     "common": {
         "name": "vedirect",
-        "version": "0.5.1",
+        "version": "0.5.2",
         "news": {
             "0.4.1": {
                 "en": "Resolved pending merge conflicts by consolidating recent PR changes, added standalone CHANGELOG.md, and refreshed README release notes.",
@@ -151,8 +151,8 @@
         "platform": "Javascript/Node.js",
         "icon": "vedirect.png",
         "enabled": true,
-        "extIcon": "https://raw.githubusercontent.com/DrozmotiX/ioBroker.vedirect/master/admin/vedirect.png",
-        "readme": "https://github.com/DrozmotiX/ioBroker.vedirect/blob/master/README.md",
+        "extIcon": "https://raw.githubusercontent.com/LeoTronick/ioBroker.vedirect/main/admin/vedirect.png",
+        "readme": "https://github.com/LeoTronick/ioBroker.vedirect/blob/main/README.md",
         "loglevel": "info",
         "mode": "daemon",
         "type": "energy",

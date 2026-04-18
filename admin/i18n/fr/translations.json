@@ -3,12 +3,6 @@
     "Leave empty or 0 to not expire states": "Laissez vide ou 0 pour ne pas expirer les états",
     "Please choose your preferred settings": "Veuillez choisir vos paramètres préférés",
     "USBDevice": "Port de périphérique USB",
-    "device1Path": "Chemin appareil 1",
-    "device2Path": "Chemin appareil 2 (optionnel)",
-    "device3Path": "Chemin appareil 3 (optionnel)",
     "expireTime": "Temps d'expiration des états en secondes",
-    "fastStateInterval": "Fenêtre d'écriture des états rapides (secondes)",
-    "messageBuffer": "Tampon en quelques secondes pour ignorer les messages",
-    "normalStateInterval": "Fenêtre d'écriture des états normaux (secondes)",
-    "slowStateInterval": "Fenêtre d'écriture des états lents (secondes)"
+    "messageBuffer": "Tampon en quelques secondes pour ignorer les messages"
 }

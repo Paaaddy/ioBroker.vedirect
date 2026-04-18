@@ -3,12 +3,6 @@
     "Leave empty or 0 to not expire states": "Laat leeg of 0 om de status niet te laten verlopen",
     "Please choose your preferred settings": "Kies uw voorkeursinstellingen",
     "USBDevice": "USB-apparaatpoort",
-    "device1Path": "Pad apparaat 1",
-    "device2Path": "Pad apparaat 2 (optioneel)",
-    "device3Path": "Pad apparaat 3 (optioneel)",
     "expireTime": "Vervaltijd van staten in seconden",
-    "fastStateInterval": "Schrijfvenster voor snelle states (seconden)",
-    "messageBuffer": "Buffer in seconden om berichten te negeren",
-    "normalStateInterval": "Schrijfvenster voor normale states (seconden)",
-    "slowStateInterval": "Schrijfvenster voor trage states (seconden)"
+    "messageBuffer": "Buffer in seconden om berichten te negeren"
 }

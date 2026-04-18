@@ -3,12 +3,6 @@
     "Leave empty or 0 to not expire states": "Deixe em branco ou 0 para não expirar os estados",
     "Please choose your preferred settings": "Escolha suas configurações preferidas",
     "USBDevice": "Porta do dispositivo USB",
-    "device1Path": "Caminho do dispositivo 1",
-    "device2Path": "Caminho do dispositivo 2 (opcional)",
-    "device3Path": "Caminho do dispositivo 3 (opcional)",
     "expireTime": "Tempo de expiração dos estados em segundos",
-    "fastStateInterval": "Janela de gravação para estados rápidos (segundos)",
-    "messageBuffer": "Buffer em segundos para ignorar mensagens",
-    "normalStateInterval": "Janela de gravação para estados normais (segundos)",
-    "slowStateInterval": "Janela de gravação para estados lentos (segundos)"
+    "messageBuffer": "Buffer em segundos para ignorar mensagens"
 }

@@ -61,7 +61,6 @@ class Vedirect extends utils.Adapter {
 		this.deviceConnectionStates = new Map();
 		this.deviceReconnectSchedulers = new Map();
 		this.deviceConnectionWatchdogInterval = null;
-		this.subscribedStates = new Set();
 		this.commandWriter = new SerialCommandWriter(this, {
 			getPort: (deviceId) => this.devicePorts.get(deviceId),
 			getLastTelemetryAt: (deviceId) => this.deviceLastTelemetryAt.get(deviceId) || 0,
@@ -131,11 +130,6 @@ class Vedirect extends utils.Adapter {
 		}
 		const scheduler = this.deviceReconnectSchedulers.get(deviceId);
 
-		const existingPort = this.devicePorts.get(deviceId);
-		if (existingPort && existingPort.isOpen) {
-			existingPort.close();
-		}
-
 		const serialPort = new SerialPort({
 			path,
 			baudRate: 19200
@@ -147,18 +141,18 @@ class Vedirect extends utils.Adapter {
 		serialPort.on('error', (error) => {
 			this.log.error(`Issue handling serial port connection for ${deviceId}: ${JSON.stringify(error)}`);
 			this.deviceConnectionStates.set(deviceId, false);
-			this.updateConnectionState(deviceId, false);
+			this.updateConnectionState();
 			scheduler.scheduleRetry();
 		});
 		serialPort.on('close', () => {
 			this.deviceConnectionStates.set(deviceId, false);
-			this.updateConnectionState(deviceId, false);
+			this.updateConnectionState();
 			scheduler.scheduleRetry();
 		});
 
 		const parser = serialPort.pipe(new ReadlineParser({delimiter: '\r\n'}));
 		parser.on('data', (data) => {
-			scheduler.reset();
+			scheduler.cancel();
 			this.deviceLastTelemetryAt.set(deviceId, Date.now());
 			this.log.debug(`[Serial data received ${deviceId}] ${data}`);
 			if (!this.deviceMessageBufferFlags.get(deviceId)) {
@@ -179,31 +173,24 @@ class Vedirect extends utils.Adapter {
 			} else {
 				this.log.debug(`Message buffer active for ${deviceId}, message ignored`);
 			}
-			// Only update connection state on transition (disconnected -> connected)
-			if (!this.deviceConnectionStates.get(deviceId)) {
-				this.deviceConnectionStates.set(deviceId, true);
-				this.updateConnectionState(deviceId, true);
-			}
+			this.deviceConnectionStates.set(deviceId, true);
+			this.updateConnectionState();
 		});
 
 		parser.on('error', (error) => {
 			this.log.error(`Issue handling serial parser for ${deviceId}: ${JSON.stringify(error)}`);
 			this.deviceConnectionStates.set(deviceId, false);
-			this.updateConnectionState(deviceId, false);
+			this.updateConnectionState();
 			scheduler.scheduleRetry();
 		});
 	}
 
-	updateConnectionState(changedDeviceId, newState) {
-		// Only recompute and write global state when a device actually changed
-		let isAnyDeviceConnected = newState;
-		if (!isAnyDeviceConnected) {
-			for (const v of this.deviceConnectionStates.values()) {
-				if (v) { isAnyDeviceConnected = true; break; }
-			}
+	updateConnectionState() {
+		const isAnyDeviceConnected = Array.from(this.deviceConnectionStates.values()).some(Boolean);
+		this.setState('info.connection', isAnyDeviceConnected, true);
+		for (const [deviceId, isConnected] of this.deviceConnectionStates.entries()) {
+			this.setStateChanged(`devices.${deviceId}.info.connection`, isConnected, true);
 		}
-		this.setStateChanged('info.connection', isAnyDeviceConnected, true);
-		this.setStateChanged(`devices.${changedDeviceId}.info.connection`, newState, true);
 	}
 
 	startConnectionWatchdog() {
@@ -216,7 +203,7 @@ class Vedirect extends utils.Adapter {
 				const isConnected = this.deviceConnectionStates.get(deviceId);
 				if (isConnected && now - lastTelemetryAt > 10000) {
 					this.deviceConnectionStates.set(deviceId, false);
-					this.updateConnectionState(deviceId, false);
+					this.updateConnectionState();
 					this.log.error(`No data received for 10 seconds on ${deviceId}, connection lost ?`);
 					const scheduler = this.deviceReconnectSchedulers.get(deviceId);
 					if (scheduler) {
@@ -347,10 +334,9 @@ class Vedirect extends utils.Adapter {
 		}
 
 		const shortId = id.startsWith(`${this.namespace}.`) ? id.slice(this.namespace.length + 1) : id;
-		let isKnownCommandPath = false;
-		for (const prefix of this.commandChannelPrefixes) {
-			if (shortId.startsWith(`${prefix}.`)) { isKnownCommandPath = true; break; }
-		}
+		const isKnownCommandPath = Array.from(this.commandChannelPrefixes).some((prefix) =>
+			shortId.startsWith(`${prefix}.`)
+		);
 		if (!isKnownCommandPath) {
 			return;
 		}
@@ -451,8 +437,7 @@ class Vedirect extends utils.Adapter {
 		try {
 			// Try to get details from state lib, if not use defaults. throw warning is states is not known in attribute list
 			const common = {};
-			const attr = stateAttr[name];
-			if (!attr) {
+			if (!stateAttr[name]) {
 				const warnMessage = `State attribute definition missing for + ${name}`;
 				if (warnMessages[name] !== warnMessage) {
 					warnMessages[name] = warnMessage;
@@ -460,12 +445,13 @@ class Vedirect extends utils.Adapter {
 					this.sendSentry(warnMessage);
 				}
 			}
-			common.name = attr !== undefined ? attr.name || name : name;
-			common.type = attr !== undefined ? attr.type || typeof (value) : typeof (value);
-			common.role = attr !== undefined ? attr.role || 'state' : 'state';
+			this.log.debug('[stateSetCreate] state attribute from lib ' + JSON.stringify(stateAttr[name]));
+			common.name = stateAttr[name] !== undefined ? stateAttr[name].name || name : name;
+			common.type = stateAttr[name] !== undefined ? stateAttr[name].type || typeof (value) : typeof (value);
+			common.role = stateAttr[name] !== undefined ? stateAttr[name].role || 'state' : 'state';
 			common.read = true;
-			common.unit = attr !== undefined ? attr.unit || '' : '';
-			common.write = attr !== undefined ? attr.write || false : false;
+			common.unit = stateAttr[name] !== undefined ? stateAttr[name].unit || '' : '';
+			common.write = stateAttr[name] !== undefined ? stateAttr[name].write || false : false;
 
 			const metadataChanged = (!this.createdStatesDetails[createStateName]) || (this.createdStatesDetails[createStateName] && (
 				common.name !== this.createdStatesDetails[createStateName].name ||
@@ -501,11 +487,11 @@ class Vedirect extends utils.Adapter {
 				let expireTime = 0;
 				// Check if state should expire and expiration of states is active in config, if yes use preferred time
 				if (this.config.expireTime != null) {
-					if (attr && attr.expire != null) {
-						if (attr.expire === true) {
+					if (stateAttr[name].expire != null) {
+						if (stateAttr[name].expire === true) {
 							expireTime = Number(this.config.expireTime);
 						}
-						if (attr.expire === false) {
+						if (stateAttr[name].expire === false) {
 							expireTime = 0;
 						}
 					}
@@ -513,10 +499,6 @@ class Vedirect extends utils.Adapter {
 
 				if (common.type === 'number') {
 					value = parseFloat(value);
-					if (isNaN(value)) {
-						this.log.warn(`[stateSetCreate] Skipping NaN value for ${createStateName}: raw serial input was not a valid number`);
-						return;
-					}
 				}
 				this.setStateChanged(createStateName, {
 					val: value,
@@ -525,11 +507,8 @@ class Vedirect extends utils.Adapter {
 				});
 			}
 
-			// Subscribe on state changes if writable — only once per state
-			if (common.write && !this.subscribedStates.has(createStateName)) {
-				this.subscribedStates.add(createStateName);
-				this.subscribeStates(createStateName);
-			}
+			// Subscribe on state changes if writable
+			common.write && this.subscribeStates(createStateName);
 		} catch (error) {
 			this.sendSentry(`[stateSetCreate] ${error}`);
 		}
