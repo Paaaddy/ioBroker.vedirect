@@ -60,6 +60,12 @@ Version bump behavior:
 - `feat:` creates a minor release
 - a breaking change (`feat!:` or `BREAKING CHANGE:`) creates a major release
 
+## Error reporting
+
+This adapter uses ioBroker's built-in Sentry integration to report unexpected errors. Error payloads may include device paths and error stack traces and are sent to ioBroker's Sentry instance (`sentry.iobroker.net`). No personal data is collected — the adapter only handles hardware telemetry (voltages, currents, charge state).
+
+To opt out, set the environment variable `DISABLE_SENTRY=true` before starting the adapter.
+
 ## Fork notice
 
 This repository is maintained as a **fork by leotronik** and is based on:
