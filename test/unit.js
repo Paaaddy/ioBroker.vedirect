@@ -3,5 +3,6 @@ const { tests } = require('@iobroker/testing');
 
 // Run unit tests. See https://github.com/ioBroker/testing for details and further options.
 tests.unit(path.join(__dirname, '..'), {
+	// @ts-ignore - allowedExitCodes is a supported option but not typed
 	allowedExitCodes: [11],
 });
