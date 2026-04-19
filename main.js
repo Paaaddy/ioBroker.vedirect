@@ -17,22 +17,25 @@ const {SerialCommandWriter, COMMAND_DEFINITIONS} = require(__dirname + '/lib/ser
 const { getConfiguredDevices } = require(__dirname + '/lib/deviceConfig.js');
 const { validateDevicePath } = require(__dirname + '/lib/pathValidation.js');
 const { createReconnectScheduler } = require(__dirname + '/lib/reconnect.js');
-const warnMessages = {}; // Array to avoid unneeded spam too sentry
+const warnedStateKeys = new Set();
 
-const disableSentry = false; // Sentry error reporting enabled
+const disableSentry = process.env.DISABLE_SENTRY === 'true';
+
+const WATCHDOG_TIMEOUT_MS = 10000;
 
 // Module-level constant for VE.Direct lookup-based fields
-const LOOKUP_KEYS = {
-	'AR':   (res, lk) => lk.alarm_reason(res[1]),
-	'WARN': (res, lk) => lk.alarm_reason(res[1]),
-	'OR':   (res, lk) => lk.off_reason(res[1]),
-	'ERR':  (res, lk) => lk.err_state(res[1]),
-	'CS':   (res, lk) => lk.cs_state(res[1]),
-	'PID':  (res, lk) => lk.product_longname(res[1]),
-	'MODE': (res, lk) => lk.device_mode(res[1]),
-	'MPPT': (res, lk) => lk.mppt_mode(res[1]),
-	'MON':  (res, lk) => lk.monitor_type(res[1]),
-};
+// Optimized to Map for O(1) lookup and pre-bound lookup functions
+const LOOKUP_KEYS = new Map([
+	['AR',   (res, lk) => lk.alarm_reason(res[1])],
+	['WARN', (res, lk) => lk.alarm_reason(res[1])],
+	['OR',   (res, lk) => lk.off_reason(res[1])],
+	['ERR',  (res, lk) => lk.err_state(res[1])],
+	['CS',   (res, lk) => lk.cs_state(res[1])],
+	['PID',  (res, lk) => lk.product_longname(res[1])],
+	['MODE', (res, lk) => lk.device_mode(res[1])],
+	['MPPT', (res, lk) => lk.mppt_mode(res[1])],
+	['MON',  (res, lk) => lk.monitor_type(res[1])],
+]);
 
 class Vedirect extends utils.Adapter {
 	/**
@@ -117,6 +120,12 @@ class Vedirect extends utils.Adapter {
 		} catch (error) {
 			this.log.error('Connection to VE.Direct device failed !');
 			this.setState('info.connection', false, true);
+			for (const serialPort of this.devicePorts.values()) {
+				if (serialPort && serialPort.isOpen) {
+					try { serialPort.close(); } catch (_) { /* ignore */ }
+				}
+			}
+			this.devicePorts.clear();
 			this.errorHandler(error);
 		}
 	}
@@ -126,7 +135,11 @@ class Vedirect extends utils.Adapter {
 
 		if (!this.deviceReconnectSchedulers.has(deviceId)) {
 			this.deviceReconnectSchedulers.set(deviceId,
-				createReconnectScheduler(() => this.openDevicePort(deviceId, path)));
+				createReconnectScheduler(() =>
+					this.openDevicePort(deviceId, path).catch(err =>
+						this.log.error(`Reconnect failed for ${deviceId}: ${err.message}`)
+					)
+				));
 		}
 		const scheduler = this.deviceReconnectSchedulers.get(deviceId);
 
@@ -139,15 +152,23 @@ class Vedirect extends utils.Adapter {
 		this.deviceLastTelemetryAt.set(deviceId, 0);
 
 		serialPort.on('error', (error) => {
-			this.log.error(`Issue handling serial port connection for ${deviceId}: ${JSON.stringify(error)}`);
-			this.deviceConnectionStates.set(deviceId, false);
-			this.updateConnectionState();
-			scheduler.scheduleRetry();
+			try {
+				this.log.error(`Issue handling serial port connection for ${deviceId}: ${error.message || String(error)}`);
+				this.deviceConnectionStates.set(deviceId, false);
+				this.updateConnectionState();
+				scheduler.scheduleRetry();
+			} catch (e) {
+				this.errorHandler(e);
+			}
 		});
 		serialPort.on('close', () => {
-			this.deviceConnectionStates.set(deviceId, false);
-			this.updateConnectionState();
-			scheduler.scheduleRetry();
+			try {
+				this.deviceConnectionStates.set(deviceId, false);
+				this.updateConnectionState();
+				scheduler.scheduleRetry();
+			} catch (e) {
+				this.errorHandler(e);
+			}
 		});
 
 		const parser = serialPort.pipe(new ReadlineParser({delimiter: '\r\n'}));
@@ -178,10 +199,14 @@ class Vedirect extends utils.Adapter {
 		});
 
 		parser.on('error', (error) => {
-			this.log.error(`Issue handling serial parser for ${deviceId}: ${JSON.stringify(error)}`);
-			this.deviceConnectionStates.set(deviceId, false);
-			this.updateConnectionState();
-			scheduler.scheduleRetry();
+			try {
+				this.log.error(`Issue handling serial parser for ${deviceId}: ${error.message || String(error)}`);
+				this.deviceConnectionStates.set(deviceId, false);
+				this.updateConnectionState();
+				scheduler.scheduleRetry();
+			} catch (e) {
+				this.errorHandler(e);
+			}
 		});
 	}
 
@@ -201,10 +226,10 @@ class Vedirect extends utils.Adapter {
 			const now = Date.now();
 			for (const [deviceId, lastTelemetryAt] of this.deviceLastTelemetryAt.entries()) {
 				const isConnected = this.deviceConnectionStates.get(deviceId);
-				if (isConnected && now - lastTelemetryAt > 10000) {
+				if (isConnected && now - lastTelemetryAt > WATCHDOG_TIMEOUT_MS) {
 					this.deviceConnectionStates.set(deviceId, false);
 					this.updateConnectionState();
-					this.log.error(`No data received for 10 seconds on ${deviceId}, connection lost ?`);
+					this.log.error(`No data received for ${WATCHDOG_TIMEOUT_MS / 1000}s on ${deviceId}, connection lost ?`);
 					const scheduler = this.deviceReconnectSchedulers.get(deviceId);
 					if (scheduler) {
 						scheduler.scheduleRetry();
@@ -369,20 +394,24 @@ class Vedirect extends utils.Adapter {
 			this.log.debug('Line : ' + line);
 			// VE.Direct text protocol lines are tab separated:
 			// <KEY>\t<VALUE>
-			const res = line.split('\t');
+			const tabIdx = line.indexOf('\t');
 			// Guard: VE.Direct lines without a tab separator (e.g. blank lines, checksum) are not key-value pairs
-			if (res.length < 2 || res[1] === undefined) {
+			if (tabIdx === -1) {
 				this.log.debug(`[parse_serial] skipping non-KV line for ${deviceId}: ${line}`);
 				return;
 			}
-			if (stateAttr[res[0]] !== undefined) {
+			const key = line.substring(0, tabIdx);
+			const rawValue = line.substring(tabIdx + 1);
+
+			if (stateAttr[key] !== undefined) {
 				// Most values need unit conversion (e.g. mV -> V, mA -> A) or lookup
 				// to human-readable text before writing to ioBroker state tree.
-				const value = Object.prototype.hasOwnProperty.call(LOOKUP_KEYS, res[0])
-					? LOOKUP_KEYS[res[0]](res, lookups)
-					: convertValue(res[0], res[1]);
+				const lookupFn = LOOKUP_KEYS.get(key);
+				const value = lookupFn
+					? lookupFn([key, rawValue], lookups)
+					: convertValue(key, rawValue);
 
-				this.stateSetCreate(deviceId, res[0], res[0], value);
+				this.stateSetCreate(deviceId, key, key, value);
 			}
 		} catch (error) {
 			this.log.error(`[parse_serial] Error processing VE.Direct data for ${deviceId}: ${error.message}`);
@@ -436,31 +465,35 @@ class Vedirect extends utils.Adapter {
 		// const expireTime = 0;
 		try {
 			// Try to get details from state lib, if not use defaults. throw warning is states is not known in attribute list
-			const common = {};
-			if (!stateAttr[name]) {
+			const attr = stateAttr[name];
+			if (!attr) {
 				const warnMessage = `State attribute definition missing for + ${name}`;
-				if (warnMessages[name] !== warnMessage) {
-					warnMessages[name] = warnMessage;
-					// Send information to Sentry
+				if (!warnedStateKeys.has(name)) {
+					warnedStateKeys.add(name);
 					this.sendSentry(warnMessage);
 				}
 			}
-			this.log.debug('[stateSetCreate] state attribute from lib ' + JSON.stringify(stateAttr[name]));
-			common.name = stateAttr[name] !== undefined ? stateAttr[name].name || name : name;
-			common.type = stateAttr[name] !== undefined ? stateAttr[name].type || typeof (value) : typeof (value);
-			common.role = stateAttr[name] !== undefined ? stateAttr[name].role || 'state' : 'state';
-			common.read = true;
-			common.unit = stateAttr[name] !== undefined ? stateAttr[name].unit || '' : '';
-			common.write = stateAttr[name] !== undefined ? stateAttr[name].write || false : false;
+			this.log.debug('[stateSetCreate] state attribute from lib ' + JSON.stringify(attr));
 
-			const metadataChanged = (!this.createdStatesDetails[createStateName]) || (this.createdStatesDetails[createStateName] && (
-				common.name !== this.createdStatesDetails[createStateName].name ||
-                    common.type !== this.createdStatesDetails[createStateName].type ||
-                    common.role !== this.createdStatesDetails[createStateName].role ||
-                    common.read !== this.createdStatesDetails[createStateName].read ||
-                    common.unit !== this.createdStatesDetails[createStateName].unit ||
-                    common.write !== this.createdStatesDetails[createStateName].write)
-			);
+			// Build common metadata
+			const common = {
+				name: (attr && attr.name) || name,
+				type: (attr && attr.type) || typeof (value),
+				role: (attr && attr.role) || 'state',
+				read: true,
+				unit: (attr && attr.unit) || '',
+				write: (attr && attr.write) || false
+			};
+
+			// Fast path: check if state exists and metadata matches
+			const existing = this.createdStatesDetails[createStateName];
+			const metadataChanged = !existing ||
+				common.name !== existing.name ||
+				common.type !== existing.type ||
+				common.role !== existing.role ||
+				common.read !== existing.read ||
+				common.unit !== existing.unit ||
+				common.write !== existing.write;
 
 			if (metadataChanged) {
 				this.log.debug(`[stateSetCreate] An attribute has changed for : ${stateName}`);
@@ -472,33 +505,34 @@ class Vedirect extends utils.Adapter {
 					common
 				});
 
+				// Store current object definition to memory
+				this.createdStatesDetails[createStateName] = common;
+				if (this.config.deepStateDiagnostics === true) {
+					this.log.debug(`[stateSetCreate] metadata updated for key: ${createStateName}`);
+				}
 			} else {
 				this.log.debug(`[stateSetCreate] No attribute changes for : ${stateName}, processing normally`);
-			}
-
-			// Store current object definition to memory
-			this.createdStatesDetails[createStateName] = common;
-			if (this.config.deepStateDiagnostics === true && metadataChanged) {
-				this.log.debug(`[stateSetCreate] metadata updated for key: ${createStateName}`);
 			}
 
 			// Set value to state including expiration time
 			if (value != null) {
 				let expireTime = 0;
 				// Check if state should expire and expiration of states is active in config, if yes use preferred time
-				if (this.config.expireTime != null) {
-					if (stateAttr[name].expire != null) {
-						if (stateAttr[name].expire === true) {
-							expireTime = Number(this.config.expireTime);
-						}
-						if (stateAttr[name].expire === false) {
-							expireTime = 0;
-						}
+				if (this.config.expireTime != null && attr) {
+					if (attr.expire === true) {
+						expireTime = Number(this.config.expireTime);
+					} else if (attr.expire === false) {
+						expireTime = 0;
 					}
 				}
 
 				if (common.type === 'number') {
-					value = parseFloat(value);
+					const parsed = parseFloat(value);
+					if (isNaN(parsed)) {
+						this.log.warn(`[stateSetCreate] Cannot parse numeric value for ${name}: ${value}`);
+						return;
+					}
+					value = parsed;
 				}
 				this.setStateChanged(createStateName, {
 					val: value,
