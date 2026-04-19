@@ -17,6 +17,7 @@ const {SerialCommandWriter, COMMAND_DEFINITIONS} = require(__dirname + '/lib/ser
 const { getConfiguredDevices } = require(__dirname + '/lib/deviceConfig.js');
 const { validateDevicePath } = require(__dirname + '/lib/pathValidation.js');
 const { createReconnectScheduler } = require(__dirname + '/lib/reconnect.js');
+const { VeDirectChecksumValidator } = require(__dirname + '/lib/checksumValidator.js');
 const warnedStateKeys = new Set();
 
 const disableSentry = process.env.DISABLE_SENTRY === 'true';
@@ -64,6 +65,7 @@ class Vedirect extends utils.Adapter {
 		this.deviceConnectionStates = new Map();
 		this.deviceReconnectSchedulers = new Map();
 		this.deviceConnectionWatchdogInterval = null;
+		this.checksumValidator = new VeDirectChecksumValidator();
 		this.commandWriter = new SerialCommandWriter(this, {
 			getPort: (deviceId) => this.devicePorts.get(deviceId),
 			getLastTelemetryAt: (deviceId) => this.deviceLastTelemetryAt.get(deviceId) || 0,
@@ -90,9 +92,15 @@ class Vedirect extends utils.Adapter {
 			const deviceId = this.getDeviceId(primaryDevice.path);
 			this.commandChannelPrefix = `devices.${deviceId}.commands`;
 			const processedDeviceIds = new Set();
+			const seenPaths = new Map();
 			const uniqueConfiguredDevices = [];
 			for (const configuredDevice of configuredDevices) {
 				const configuredDeviceId = this.getDeviceId(configuredDevice.path);
+				if (seenPaths.has(configuredDeviceId)) {
+					this.log.warn(`Device path collision: "${configuredDevice.path}" and "${seenPaths.get(configuredDeviceId)}" map to same ID "${configuredDeviceId}". States will overwrite each other.`);
+				} else {
+					seenPaths.set(configuredDeviceId, configuredDevice.path);
+				}
 				if (processedDeviceIds.has(configuredDeviceId)) {
 					continue;
 				}
@@ -109,7 +117,7 @@ class Vedirect extends utils.Adapter {
 					await this.openDevicePort(configuredDevice.deviceId, configuredDevice.path);
 					anyOpened = true;
 				} catch (error) {
-					this.log.error(`Failed to open device ${configuredDevice.deviceId} at ${configuredDevice.path}: ${error.message}`);
+					this.log.error(`Failed to open device ${configuredDevice.deviceId} at ${configuredDevice.path}: ${error instanceof Error ? error.message : String(error)}`);
 				}
 			}
 			if (!anyOpened) {
@@ -230,6 +238,8 @@ class Vedirect extends utils.Adapter {
 					this.deviceConnectionStates.set(deviceId, false);
 					this.updateConnectionState();
 					this.log.error(`No data received for ${WATCHDOG_TIMEOUT_MS / 1000}s on ${deviceId}, connection lost ?`);
+					this.commandWriter.clearQueueForDevice(deviceId);
+					this.checksumValidator.reset(deviceId);
 					const scheduler = this.deviceReconnectSchedulers.get(deviceId);
 					if (scheduler) {
 						scheduler.scheduleRetry();
@@ -346,7 +356,7 @@ class Vedirect extends utils.Adapter {
 			});
 			await this.extendObject(definition.id, {
 				type: 'state',
-				common: definition.common,
+				common: /** @type {ioBroker.StateCommon} */ (definition.common),
 				native: definition.native
 			});
 			await this.subscribeStates(definition.id);
@@ -385,37 +395,34 @@ class Vedirect extends utils.Adapter {
 				ack: true
 			});
 		} catch (error) {
-			this.log.error(`Command ${commandName} for ${deviceId} rejected: ${error.message || error}`);
+			this.log.error(`Command ${commandName} for ${deviceId} rejected: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
 
 	async parse_serial(deviceId, line) {
 		try {
 			this.log.debug('Line : ' + line);
-			// VE.Direct text protocol lines are tab separated:
-			// <KEY>\t<VALUE>
-			const tabIdx = line.indexOf('\t');
-			// Guard: VE.Direct lines without a tab separator (e.g. blank lines, checksum) are not key-value pairs
-			if (tabIdx === -1) {
-				this.log.debug(`[parse_serial] skipping non-KV line for ${deviceId}: ${line}`);
+			const { blockComplete, valid, entries } = this.checksumValidator.processLine(deviceId, line);
+
+			if (!blockComplete) {
 				return;
 			}
-			const key = line.substring(0, tabIdx);
-			const rawValue = line.substring(tabIdx + 1);
 
-			if (stateAttr[key] !== undefined) {
-				// Most values need unit conversion (e.g. mV -> V, mA -> A) or lookup
-				// to human-readable text before writing to ioBroker state tree.
+			if (!valid) {
+				this.log.warn(`[parse_serial] Checksum failure for ${deviceId} — block discarded`);
+				return;
+			}
+
+			for (const { key, rawValue } of entries) {
+				if (stateAttr[key] === undefined) continue;
 				const lookupFn = LOOKUP_KEYS.get(key);
 				const value = lookupFn
 					? lookupFn([key, rawValue], lookups)
 					: convertValue(key, rawValue);
-
 				this.stateSetCreate(deviceId, key, key, value);
 			}
 		} catch (error) {
-			this.log.error(`[parse_serial] Error processing VE.Direct data for ${deviceId}: ${error.message}`);
-			this.setState('info.connection', false, true);
+			this.log.error(`[parse_serial] Error processing VE.Direct data for ${deviceId}: ${error instanceof Error ? error.message : String(error)}`);
 			this.errorHandler(error);
 		}
 	}
@@ -527,22 +534,21 @@ class Vedirect extends utils.Adapter {
 				}
 
 				if (common.type === 'number') {
-					const parsed = parseFloat(value);
+					const parsed = parseFloat(String(value));
 					if (isNaN(parsed)) {
 						this.log.warn(`[stateSetCreate] Cannot parse numeric value for ${name}: ${value}`);
 						return;
 					}
 					value = parsed;
 				}
-				this.setStateChanged(createStateName, {
-					val: value,
-					ack: true,
-					expire: expireTime
-				});
+				if (expireTime > 0) {
+					// Must use setState (not setStateChanged) so the expire timer resets
+					// even when the value hasn't changed — otherwise stable readings expire.
+					this.setState(createStateName, { val: value, ack: true, expire: expireTime });
+				} else {
+					this.setStateChanged(createStateName, { val: value, ack: true });
+				}
 			}
-
-			// Subscribe on state changes if writable
-			common.write && this.subscribeStates(createStateName);
 		} catch (error) {
 			this.sendSentry(`[stateSetCreate] ${error}`);
 		}
