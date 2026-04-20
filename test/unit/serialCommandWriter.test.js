@@ -11,6 +11,8 @@ function makeWritablePort() {
 	const port = { writable: true, written: [] };
 	port.write = sinon.stub().callsFake((frame, cb) => { port.written.push(frame); cb(null); });
 	port.drain = sinon.stub().callsFake((cb) => cb(null));
+	port.once = sinon.stub();
+	port.removeListener = sinon.stub();
 	return port;
 }
 
@@ -139,9 +141,9 @@ describe('SerialCommandWriter.waitForRateLimit', () => {
 	it('delays by remaining interval when last write was recent', async () => {
 		const clock = sinon.useFakeTimers();
 		const w = new SerialCommandWriter(makeAdapter(), { getPort: () => undefined, minIntervalMs: 200, telemetryQuietTimeMs: 0 });
-		w.lastWriteAt = Date.now() - 100; // 100ms ago → 100ms remaining
+		w.lastWriteAtByDevice.set('dev1', Date.now() - 100); // 100ms ago → 100ms remaining
 		let resolved = false;
-		w.waitForRateLimit().then(() => { resolved = true; });
+		w.waitForRateLimit('dev1').then(() => { resolved = true; });
 		await clock.tickAsync(99);
 		expect(resolved).to.equal(false);
 		await clock.tickAsync(1);
