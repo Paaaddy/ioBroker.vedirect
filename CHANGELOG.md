@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.5.3](https://github.com/Paaaddy/ioBroker.vedirect/compare/v0.5.2...v0.5.3) (2026-04-19)
+
+
+### Bug Fixes
+
+* harden error handling, plug unhandled promises, optimize hot path ([#32](https://github.com/Paaaddy/ioBroker.vedirect/issues/32)) ([aa221e9](https://github.com/Paaaddy/ioBroker.vedirect/commit/aa221e9507318f4b4c9f9fba0f48e9bece7db9e3))
+
 ## [0.5.2](https://github.com/Paaaddy/ioBroker.vedirect/compare/v0.5.1...v0.5.2) (2026-04-10)
 
 
