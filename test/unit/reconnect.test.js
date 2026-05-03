@@ -107,4 +107,18 @@ describe('createReconnectScheduler', () => {
 		clock.tick(2000);
 		expect(onAttempt.callCount).to.equal(0);  // shutdown prevents retry
 	});
+
+	it('throws TypeError when onAttempt is not a function', () => {
+		expect(() => createReconnectScheduler(42)).to.throw(TypeError, 'onAttempt must be a function');
+	});
+
+	it('reset() clears a pending timer so it never fires', () => {
+		const spy = sinon.spy();
+		const scheduler = createReconnectScheduler(spy, { initialDelayMs: 1000, maxDelayMs: 60000 });
+		scheduler.scheduleRetry();
+		// Timer is still pending — do NOT tick before reset()
+		scheduler.reset();  // covers lines 49-51: if(timer){ clearTimeout; timer=null }
+		clock.tick(2000);   // timer was cleared; spy must NOT fire
+		expect(spy.callCount).to.equal(0);
+	});
 });

@@ -4,7 +4,7 @@ const sinon = require('sinon');
 const stateAttr = require('../../lib/stateAttr');
 
 // Module-level warn dedup cache — mirrors main.js
-const warnMessages = {};
+const warnedStateKeys = new Set();
 
 // Minimal adapter mock with stateSetCreate copied from main.js
 // so it runs in isolation without the ioBroker runtime.
@@ -32,8 +32,8 @@ function makeAdapter(config = {}) {
 			const attr = stateAttr[name];
 			if (!attr) {
 				const warnMessage = `State attribute definition missing for + ${name}`;
-				if (warnMessages[name] !== warnMessage) {
-					warnMessages[name] = warnMessage;
+				if (!warnedStateKeys.has(name)) {
+					warnedStateKeys.add(name);
 					this.sendSentry(warnMessage);
 				}
 			}

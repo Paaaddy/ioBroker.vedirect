@@ -1,31 +1,51 @@
 'use strict';
 const { expect } = require('chai');
+const { VeDirectChecksumValidator } = require('../../lib/checksumValidator');
 
-// NOTE: This test defines a local copy of the guard logic as a pure function
-// because parse_serial is an instance method on the Vedirect adapter class,
-// which requires the full ioBroker runtime to instantiate. The pure helper
-// mirrors the production guard exactly — if the guard in main.js is changed,
-// this test must be updated to match.
-function splitVeDirectLine(line) {
-	const parts = line.split('\t');
-	if (parts.length < 2) return null;
-	return { key: parts[0], raw: parts[1] };
-}
-
-describe('VE.Direct line splitting', () => {
-	it('returns null for lines without a tab (e.g. checksum noise)', () => {
-		expect(splitVeDirectLine('Checksum')).to.be.null;
+describe('checksumValidator.processLine()', () => {
+	it('returns blockComplete:false for a tab-delimited data line', () => {
+		const v = new VeDirectChecksumValidator();
+		const result = v.processLine('dev1', 'V\t12650');
+		expect(result.blockComplete).to.equal(false);
+		expect(result.entries).to.deep.equal([]);
 	});
 
-	it('parses a valid key-value line', () => {
-		expect(splitVeDirectLine('V\t12650')).to.deep.equal({ key: 'V', raw: '12650' });
+	it('emits entries when a valid checksum line completes a block', () => {
+		const v = new VeDirectChecksumValidator();
+		// Prime the first-block guard — first checksum is always discarded
+		v.processLine('dev1', 'Checksum\t\x00');
+		// Build a second block: V\t12650 + the byte that makes the running sum === 0
+		// Sum of V\t12650 = 116; sum of Checksum\t = 83; total = 199; byte 57 = 256-199 → sum 0
+		v.processLine('dev1', 'V\t12650');
+		const result = v.processLine('dev1', 'Checksum\t' + String.fromCharCode(57));
+		expect(result.blockComplete).to.equal(true);
+		expect(result.valid).to.equal(true);
+		expect(result.entries).to.deep.equal([{ key: 'V', rawValue: '12650' }]);
 	});
 
-	it('returns null for empty line', () => {
-		expect(splitVeDirectLine('')).to.be.null;
+	it('returns blockComplete:false and does not crash for a garbage line (no tab)', () => {
+		const v = new VeDirectChecksumValidator();
+		const result = v.processLine('dev1', 'notatabledline');
+		expect(result.blockComplete).to.equal(false);
 	});
 
-	it('handles value that is "0"', () => {
-		expect(splitVeDirectLine('SOC\t0')).to.deep.equal({ key: 'SOC', raw: '0' });
+	it('returns valid:false and empty entries for an invalid checksum', () => {
+		const v = new VeDirectChecksumValidator();
+		// Prime the first-block guard
+		v.processLine('dev1', 'Checksum\t\x00');
+		v.processLine('dev1', 'V\t12650');
+		// Wrong byte (0 instead of 57) → sum ends at 199, not 0
+		const result = v.processLine('dev1', 'Checksum\t\x00');
+		expect(result.blockComplete).to.equal(true);
+		expect(result.valid).to.equal(false);
+		expect(result.entries).to.deep.equal([]);
+	});
+
+	it('does not crash or corrupt state on an oversized line (>256 chars)', () => {
+		const v = new VeDirectChecksumValidator();
+		const longLine = 'x'.repeat(300);
+		expect(() => v.processLine('dev1', longLine)).to.not.throw();
+		const after = v.processLine('dev1', longLine);
+		expect(after.blockComplete).to.equal(false);
 	});
 });
