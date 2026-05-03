@@ -1,8 +1,21 @@
 {
     "common": {
         "name": "vedirect",
-        "version": "0.5.3",
+        "version": "0.5.4",
         "news": {
+            "0.5.4": {
+                "en": "Hardware safety hardening: reset checksum buffer and command queue on disconnect, add NaN guard for expireTime config.",
+                "de": "Hardware-Sicherheitshärtung: Checksum-Puffer und Befehlswarteschlange bei Trennung zurücksetzen, NaN-Schutz für expireTime-Konfiguration.",
+                "ru": "Укрепление аппаратной безопасности: сброс буфера контрольной суммы и очереди команд при отключении, защита NaN для конфигурации expireTime.",
+                "pt": "Hardening de segurança de hardware: redefinir buffer de checksum e fila de comandos na desconexão, adicionar proteção NaN para configuração expireTime.",
+                "nl": "Hardware-beveiligingsharding: reset checksum-buffer en opdrachtwachtrij bij verbreking, NaN-beveiliging toevoegen voor expireTime-configuratie.",
+                "fr": "Durcissement de la sécurité matérielle : réinitialisation du tampon de somme de contrôle et de la file d'attente des commandes lors de la déconnexion, ajout d'une protection NaN pour la configuration expireTime.",
+                "it": "Hardening della sicurezza hardware: ripristina il buffer del checksum e la coda dei comandi alla disconnessione, aggiunge protezione NaN per la configurazione expireTime.",
+                "es": "Refuerzo de seguridad de hardware: restablece el búfer de suma de verificación y la cola de comandos al desconectarse, agrega protección NaN para la configuración expireTime.",
+                "pl": "Wzmocnienie zabezpieczeń sprzętu: resetowanie bufora sumy kontrolnej i kolejki poleceń przy rozłączeniu, dodanie ochrony NaN dla konfiguracji expireTime.",
+                "uk": "Апаратне посилення безпеки: скидання буфера контрольної суми та черги команд при відключенні, додавання захисту NaN для конфігурації expireTime.",
+                "zh-cn": "硬件安全加固：断开连接时重置校验和缓冲区和命令队列，为expireTime配置添加NaN保护。"
+            },
             "0.4.1": {
                 "en": "Resolved pending merge conflicts by consolidating recent PR changes, added standalone CHANGELOG.md, and refreshed README release notes.",
                 "de": "Offene Merge-Konflikte durch Zusammenführen aktueller PR-Änderungen gelöst, eigenständige CHANGELOG.md hinzugefügt und README-Release-Hinweise aktualisiert.",

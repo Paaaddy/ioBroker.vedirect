@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.5.4](https://github.com/Paaaddy/ioBroker.vedirect/compare/v0.5.3...v0.5.4) (2026-05-03)
+
+
+### Bug Fixes
+
+* hardware safety: reset checksum buffer and command queue on USB disconnect per device (H1)
+* add NaN guard for `expireTime` config — invalid value logs a warning and falls back to 0 (H7)
+* test: replace phantom `splitVeDirectLine()` tests with real `checksumValidator.processLine()` coverage (H3)
+* test: align `stateSetCreate` dedup guard to use `Set` matching production code (H2)
+* test: add `serialCommandWriter` coverage for stale-command discard, write timeout, port close, and `clearQueueForDevice` (H4)
+* test: add `reconnect` coverage for invalid callback guard and timer-clear on `reset()` (H5)
+
 ## [0.5.3](https://github.com/Paaaddy/ioBroker.vedirect/compare/v0.5.2...v0.5.3) (2026-04-19)
 
 
