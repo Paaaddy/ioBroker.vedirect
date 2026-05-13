@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.5.4](https://github.com/Paaaddy/ioBroker.vedirect/compare/v0.5.3...v0.5.4) (2026-05-13)
+
+
+### Bug Fixes
+
+* hardware safety hardening v0.5.4 — H1-H7 ([#34](https://github.com/Paaaddy/ioBroker.vedirect/issues/34)) ([3bf9368](https://github.com/Paaaddy/ioBroker.vedirect/commit/3bf93688a10e4fac3da97e1046354f2bb73e41ec))
+
 ## [0.5.4](https://github.com/Paaaddy/ioBroker.vedirect/compare/v0.5.3...v0.5.4) (2026-05-03)
 
 
