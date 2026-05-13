@@ -19,6 +19,7 @@ const { validateDevicePath } = require(__dirname + '/lib/pathValidation.js');
 const { createReconnectScheduler } = require(__dirname + '/lib/reconnect.js');
 const { VeDirectChecksumValidator } = require(__dirname + '/lib/checksumValidator.js');
 const warnedStateKeys = new Set();
+const warnedConfigKeys = new Set();
 
 const disableSentry = process.env.DISABLE_SENTRY === 'true';
 
@@ -66,6 +67,7 @@ class Vedirect extends utils.Adapter {
 		this.deviceReconnectSchedulers = new Map();
 		this.deviceConnectionWatchdogInterval = null;
 		this.checksumValidator = new VeDirectChecksumValidator();
+		this.subscribedStates = new Set();
 		this.commandWriter = new SerialCommandWriter(this, {
 			getPort: (deviceId) => this.devicePorts.get(deviceId),
 			getLastTelemetryAt: (deviceId) => this.deviceLastTelemetryAt.get(deviceId) || 0,
@@ -151,6 +153,11 @@ class Vedirect extends utils.Adapter {
 		}
 		const scheduler = this.deviceReconnectSchedulers.get(deviceId);
 
+		const existingPort = this.devicePorts.get(deviceId);
+		if (existingPort && existingPort.isOpen) {
+			existingPort.close();
+		}
+
 		const serialPort = new SerialPort({
 			path,
 			baudRate: 19200
@@ -162,8 +169,10 @@ class Vedirect extends utils.Adapter {
 		serialPort.on('error', (error) => {
 			try {
 				this.log.error(`Issue handling serial port connection for ${deviceId}: ${error.message || String(error)}`);
+				this.checksumValidator.reset(deviceId);
+				this.commandWriter.clearQueueForDevice(deviceId);
 				this.deviceConnectionStates.set(deviceId, false);
-				this.updateConnectionState();
+				this.updateConnectionState(deviceId, false);
 				scheduler.scheduleRetry();
 			} catch (e) {
 				this.errorHandler(e);
@@ -171,8 +180,10 @@ class Vedirect extends utils.Adapter {
 		});
 		serialPort.on('close', () => {
 			try {
+				this.checksumValidator.reset(deviceId);
+				this.commandWriter.clearQueueForDevice(deviceId);
 				this.deviceConnectionStates.set(deviceId, false);
-				this.updateConnectionState();
+				this.updateConnectionState(deviceId, false);
 				scheduler.scheduleRetry();
 			} catch (e) {
 				this.errorHandler(e);
@@ -181,7 +192,7 @@ class Vedirect extends utils.Adapter {
 
 		const parser = serialPort.pipe(new ReadlineParser({delimiter: '\r\n'}));
 		parser.on('data', (data) => {
-			scheduler.cancel();
+			scheduler.reset();
 			this.deviceLastTelemetryAt.set(deviceId, Date.now());
 			this.log.debug(`[Serial data received ${deviceId}] ${data}`);
 			if (!this.deviceMessageBufferFlags.get(deviceId)) {
@@ -202,15 +213,20 @@ class Vedirect extends utils.Adapter {
 			} else {
 				this.log.debug(`Message buffer active for ${deviceId}, message ignored`);
 			}
-			this.deviceConnectionStates.set(deviceId, true);
-			this.updateConnectionState();
+			// Only update connection state on transition (disconnected -> connected)
+			if (!this.deviceConnectionStates.get(deviceId)) {
+				this.deviceConnectionStates.set(deviceId, true);
+				this.updateConnectionState(deviceId, true);
+			}
 		});
 
 		parser.on('error', (error) => {
 			try {
 				this.log.error(`Issue handling serial parser for ${deviceId}: ${error.message || String(error)}`);
+				this.checksumValidator.reset(deviceId);
+				this.commandWriter.clearQueueForDevice(deviceId);
 				this.deviceConnectionStates.set(deviceId, false);
-				this.updateConnectionState();
+				this.updateConnectionState(deviceId, false);
 				scheduler.scheduleRetry();
 			} catch (e) {
 				this.errorHandler(e);
@@ -218,12 +234,16 @@ class Vedirect extends utils.Adapter {
 		});
 	}
 
-	updateConnectionState() {
-		const isAnyDeviceConnected = Array.from(this.deviceConnectionStates.values()).some(Boolean);
-		this.setState('info.connection', isAnyDeviceConnected, true);
-		for (const [deviceId, isConnected] of this.deviceConnectionStates.entries()) {
-			this.setStateChanged(`devices.${deviceId}.info.connection`, isConnected, true);
+	updateConnectionState(changedDeviceId, newState) {
+		// Only recompute and write global state when a device actually changed
+		let isAnyDeviceConnected = newState;
+		if (!isAnyDeviceConnected) {
+			for (const v of this.deviceConnectionStates.values()) {
+				if (v) { isAnyDeviceConnected = true; break; }
+			}
 		}
+		this.setStateChanged('info.connection', isAnyDeviceConnected, true);
+		this.setStateChanged(`devices.${changedDeviceId}.info.connection`, newState, true);
 	}
 
 	startConnectionWatchdog() {
@@ -236,7 +256,7 @@ class Vedirect extends utils.Adapter {
 				const isConnected = this.deviceConnectionStates.get(deviceId);
 				if (isConnected && now - lastTelemetryAt > WATCHDOG_TIMEOUT_MS) {
 					this.deviceConnectionStates.set(deviceId, false);
-					this.updateConnectionState();
+					this.updateConnectionState(deviceId, false);
 					this.log.error(`No data received for ${WATCHDOG_TIMEOUT_MS / 1000}s on ${deviceId}, connection lost ?`);
 					this.commandWriter.clearQueueForDevice(deviceId);
 					this.checksumValidator.reset(deviceId);
@@ -369,9 +389,10 @@ class Vedirect extends utils.Adapter {
 		}
 
 		const shortId = id.startsWith(`${this.namespace}.`) ? id.slice(this.namespace.length + 1) : id;
-		const isKnownCommandPath = Array.from(this.commandChannelPrefixes).some((prefix) =>
-			shortId.startsWith(`${prefix}.`)
-		);
+		let isKnownCommandPath = false;
+		for (const prefix of this.commandChannelPrefixes) {
+			if (shortId.startsWith(`${prefix}.`)) { isKnownCommandPath = true; break; }
+		}
 		if (!isKnownCommandPath) {
 			return;
 		}
@@ -528,6 +549,13 @@ class Vedirect extends utils.Adapter {
 				if (this.config.expireTime != null && attr) {
 					if (attr.expire === true) {
 						expireTime = Number(this.config.expireTime);
+						if (isNaN(expireTime)) {
+							if (!warnedConfigKeys.has('expireTime')) {
+								warnedConfigKeys.add('expireTime');
+								this.log.warn(`[config] expireTime "${this.config.expireTime}" is not a valid number. States with expire:true will NOT expire. Fix in adapter settings.`);
+							}
+							expireTime = 0;
+						}
 					} else if (attr.expire === false) {
 						expireTime = 0;
 					}
@@ -548,6 +576,12 @@ class Vedirect extends utils.Adapter {
 				} else {
 					this.setStateChanged(createStateName, { val: value, ack: true });
 				}
+			}
+
+			// Subscribe on state changes if writable — only once per state
+			if (common.write && !this.subscribedStates.has(createStateName)) {
+				this.subscribedStates.add(createStateName);
+				this.subscribeStates(createStateName);
 			}
 		} catch (error) {
 			this.sendSentry(`[stateSetCreate] ${error}`);
