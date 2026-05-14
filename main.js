@@ -19,6 +19,7 @@ const { validateDevicePath } = require(__dirname + '/lib/pathValidation.js');
 const { createReconnectScheduler } = require(__dirname + '/lib/reconnect.js');
 const { VeDirectChecksumValidator } = require(__dirname + '/lib/checksumValidator.js');
 const warnedStateKeys = new Set();
+const warnedConfigKeys = new Set();
 
 const disableSentry = process.env.DISABLE_SENTRY === 'true';
 
@@ -168,6 +169,8 @@ class Vedirect extends utils.Adapter {
 		serialPort.on('error', (error) => {
 			try {
 				this.log.error(`Issue handling serial port connection for ${deviceId}: ${error.message || String(error)}`);
+				this.checksumValidator.reset(deviceId);
+				this.commandWriter.clearQueueForDevice(deviceId);
 				this.deviceConnectionStates.set(deviceId, false);
 				this.updateConnectionState(deviceId, false);
 				scheduler.scheduleRetry();
@@ -177,6 +180,8 @@ class Vedirect extends utils.Adapter {
 		});
 		serialPort.on('close', () => {
 			try {
+				this.checksumValidator.reset(deviceId);
+				this.commandWriter.clearQueueForDevice(deviceId);
 				this.deviceConnectionStates.set(deviceId, false);
 				this.updateConnectionState(deviceId, false);
 				scheduler.scheduleRetry();
@@ -218,6 +223,8 @@ class Vedirect extends utils.Adapter {
 		parser.on('error', (error) => {
 			try {
 				this.log.error(`Issue handling serial parser for ${deviceId}: ${error.message || String(error)}`);
+				this.checksumValidator.reset(deviceId);
+				this.commandWriter.clearQueueForDevice(deviceId);
 				this.deviceConnectionStates.set(deviceId, false);
 				this.updateConnectionState(deviceId, false);
 				scheduler.scheduleRetry();
@@ -542,6 +549,13 @@ class Vedirect extends utils.Adapter {
 				if (this.config.expireTime != null && attr) {
 					if (attr.expire === true) {
 						expireTime = Number(this.config.expireTime);
+						if (isNaN(expireTime)) {
+							if (!warnedConfigKeys.has('expireTime')) {
+								warnedConfigKeys.add('expireTime');
+								this.log.warn(`[config] expireTime "${this.config.expireTime}" is not a valid number. States with expire:true will NOT expire. Fix in adapter settings.`);
+							}
+							expireTime = 0;
+						}
 					} else if (attr.expire === false) {
 						expireTime = 0;
 					}
