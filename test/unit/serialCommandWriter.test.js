@@ -244,8 +244,10 @@ describe('SerialCommandWriter enqueue — stale discard', () => {
 		const p = w.enqueue('dev1', 'setMode', 1);
 		await clock.tickAsync(30001);
 		resolveBlocker();
-		await p;
+		let threw = false;
+		try { await p; } catch (_) { threw = true; }
 		clock.restore();
+		expect(threw).to.equal(true);
 		expect(port.written).to.have.length(0);
 		expect(adapter.log.warn.called).to.equal(true);
 	});
