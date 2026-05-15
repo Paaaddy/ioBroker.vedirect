@@ -215,3 +215,93 @@ describe('SerialCommandWriter queue serialization', () => {
 		expect(callCount).to.equal(2);
 	});
 });
+
+// ── enqueue — queueEnabled:false (line 44-45) ────────────────────────────────
+
+describe('SerialCommandWriter enqueue — queueEnabled:false', () => {
+	it('writes directly bypassing queue when queueEnabled is false', async () => {
+		const port = makeWritablePort();
+		const w = new SerialCommandWriter(makeAdapter(), {
+			...noDelayOptions(() => port),
+			queueEnabled: false,
+		});
+		await w.enqueue('dev1', 'setMode', 1);
+		expect(port.written[0]).to.equal('MODE\t1\r\n');
+	});
+});
+
+// ── enqueue — stale discard (lines 56-58) ────────────────────────────────────
+
+describe('SerialCommandWriter enqueue — stale discard', () => {
+	it('discards command queued more than 30s ago without writing to port', async () => {
+		const clock = sinon.useFakeTimers();
+		const port = makeWritablePort();
+		const adapter = makeAdapter();
+		const w = new SerialCommandWriter(adapter, noDelayOptions(() => port));
+		let resolveBlocker;
+		const blocker = new Promise(r => { resolveBlocker = r; });
+		w.deviceQueues.set('dev1', blocker);
+		const p = w.enqueue('dev1', 'setMode', 1);
+		await clock.tickAsync(30001);
+		resolveBlocker();
+		let threw = false;
+		try { await p; } catch (_) { threw = true; }
+		clock.restore();
+		expect(threw).to.equal(true);
+		expect(port.written).to.have.length(0);
+		expect(adapter.log.warn.called).to.equal(true);
+	});
+});
+
+// ── clearQueueForDevice (line 67) ────────────────────────────────────────────
+
+describe('SerialCommandWriter.clearQueueForDevice', () => {
+	it('removes the device queue entry from the Map', () => {
+		const w = new SerialCommandWriter(makeAdapter(), noDelayOptions(() => undefined));
+		w.deviceQueues.set('dev1', Promise.resolve());
+		w.clearQueueForDevice('dev1');
+		expect(w.deviceQueues.has('dev1')).to.equal(false);
+	});
+});
+
+// ── writeCommand — write timeout (lines 84-85) ───────────────────────────────
+
+describe('SerialCommandWriter.writeCommand — write timeout', () => {
+	it('rejects with timeout error when port write never completes', async () => {
+		// Only fake setTimeout/clearTimeout — leaving setImmediate real so writeCommand's
+		// async chain (two awaits before the Promise executor) can advance normally.
+		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		const port = makeWritablePort();
+		let writeStarted = false;
+		port.write = sinon.stub().callsFake(() => { writeStarted = true; });
+		const w = new SerialCommandWriter(makeAdapter(), noDelayOptions(() => port));
+		const p = w.writeCommand('dev1', 'setMode', 1);
+		// Wait for writeCommand to reach port.write (confirms timeout timer is registered).
+		while (!writeStarted) await Promise.resolve();
+		clock.tick(5001);
+		clock.restore();
+		let err;
+		try { await p; } catch (e) { err = e; }
+		expect(err).to.be.instanceOf(Error);
+		expect(err.message).to.include('timeout');
+	});
+});
+
+// ── writeCommand — port close during write (lines 89-90) ─────────────────────
+
+describe('SerialCommandWriter.writeCommand — port close during write', () => {
+	it('rejects when port emits close event during write', async () => {
+		const port = makeWritablePort();
+		const listeners = {};
+		port.once = sinon.stub().callsFake((event, cb) => { listeners[event] = cb; });
+		port.write = sinon.stub().callsFake((_frame, _cb) => {
+			// Simulate port closing before write completes
+			if (listeners.close) listeners.close();
+		});
+		const w = new SerialCommandWriter(makeAdapter(), noDelayOptions(() => port));
+		let err;
+		try { await w.writeCommand('dev1', 'setMode', 1); } catch (e) { err = e; }
+		expect(err).to.be.instanceOf(Error);
+		expect(err.message).to.include('closed during write');
+	});
+});
