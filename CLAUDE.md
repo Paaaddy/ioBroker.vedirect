@@ -29,7 +29,7 @@ No build step — pure JavaScript. `npm run build` is a no-op.
 
 ### Entry point
 
-`main.js` — exports the `Vedirect` class (extends `utils.Adapter` from `@iobroker/adapter-core`). Lifecycle: `onReady → openDevicePort → parse_serial → stateSetCreate`.
+`main.js` — exports the `Vedirect` class (extends `utils.Adapter` from `@iobroker/adapter-core`). Lifecycle: `onReady → openDevicePort → parseSerial → stateSetCreate`.
 
 ### Data flow
 
@@ -37,7 +37,7 @@ No build step — pure JavaScript. `npm run build` is a no-op.
 Serial port (19200 baud)
   → ReadlineParser (splits on \r\n)
   → checksumValidator.processLine()   # buffers lines per device; flushes complete blocks
-  → parse_serial()                    # maps VE.Direct keys via LOOKUP_KEYS or convertValue()
+  → parseSerial()                     # maps VE.Direct keys via LOOKUP_KEYS or convertValue()
   → stateSetCreate()                  # extends ioBroker objects lazily; writes state values
 ```
 
