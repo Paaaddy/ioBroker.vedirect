@@ -28,15 +28,15 @@ const WATCHDOG_TIMEOUT_MS = 10000;
 // Module-level constant for VE.Direct lookup-based fields
 // Optimized to Map for O(1) lookup and pre-bound lookup functions
 const LOOKUP_KEYS = new Map([
-	['AR',   (res, lk) => lk.alarm_reason(res[1])],
-	['WARN', (res, lk) => lk.alarm_reason(res[1])],
-	['OR',   (res, lk) => lk.off_reason(res[1])],
-	['ERR',  (res, lk) => lk.err_state(res[1])],
-	['CS',   (res, lk) => lk.cs_state(res[1])],
-	['PID',  (res, lk) => lk.product_longname(res[1])],
-	['MODE', (res, lk) => lk.device_mode(res[1])],
-	['MPPT', (res, lk) => lk.mppt_mode(res[1])],
-	['MON',  (res, lk) => lk.monitor_type(res[1])],
+	['AR',   (v, lk) => lk.alarm_reason(v)],
+	['WARN', (v, lk) => lk.alarm_reason(v)],
+	['OR',   (v, lk) => lk.off_reason(v)],
+	['ERR',  (v, lk) => lk.err_state(v)],
+	['CS',   (v, lk) => lk.cs_state(v)],
+	['PID',  (v, lk) => lk.product_longname(v)],
+	['MODE', (v, lk) => lk.device_mode(v)],
+	['MPPT', (v, lk) => lk.mppt_mode(v)],
+	['MON',  (v, lk) => lk.monitor_type(v)],
 ]);
 
 class Vedirect extends utils.Adapter {
@@ -55,7 +55,6 @@ class Vedirect extends utils.Adapter {
 		// this.on('message', this.onMessage.bind(this));
 		this.on('unload', this.onUnload.bind(this));
 		this.createdStatesDetails = {}; //  Array to store state objects to avoid unneeded object changes
-		this.commandChannelPrefix = '';
 		this.commandChannelPrefixes = new Set();
 		this.commandStateDefinitions = [];
 		this.commandStateById = new Map();
@@ -90,9 +89,6 @@ class Vedirect extends utils.Adapter {
 			if (configuredDevices.length === 0) {
 				throw new Error('No USB device configured. Please provide at least one device path in the instance settings.');
 			}
-			const primaryDevice = configuredDevices[0];
-			const deviceId = this.getDeviceId(primaryDevice.path);
-			this.commandChannelPrefix = `devices.${deviceId}.commands`;
 			const processedDeviceIds = new Set();
 			const seenPaths = new Map();
 			const uniqueConfiguredDevices = [];
@@ -155,6 +151,9 @@ class Vedirect extends utils.Adapter {
 
 		const existingPort = this.devicePorts.get(deviceId);
 		if (existingPort && existingPort.isOpen) {
+			// removeAllListeners prevents the old port's close handler from
+			// calling scheduleRetry() and triggering a spurious reconnect.
+			existingPort.removeAllListeners();
 			existingPort.close();
 		}
 
@@ -197,7 +196,7 @@ class Vedirect extends utils.Adapter {
 			this.log.debug(`[Serial data received ${deviceId}] ${data}`);
 			if (!this.deviceMessageBufferFlags.get(deviceId)) {
 				this.log.debug(`Message buffer inactive for ${deviceId}, processing data`);
-				this.parse_serial(deviceId, data);
+				this.parseSerial(deviceId, data);
 				if (this.config.messageBuffer > 0) {
 					this.log.debug(`Activate Message buffer for ${deviceId} with delay of ${this.config.messageBuffer * 1000}`);
 					this.deviceMessageBufferFlags.set(deviceId, true);
@@ -420,7 +419,7 @@ class Vedirect extends utils.Adapter {
 		}
 	}
 
-	async parse_serial(deviceId, line) {
+	async parseSerial(deviceId, line) {
 		try {
 			this.log.debug('Line : ' + line);
 			const { blockComplete, valid, entries } = this.checksumValidator.processLine(deviceId, line);
@@ -430,7 +429,7 @@ class Vedirect extends utils.Adapter {
 			}
 
 			if (!valid) {
-				this.log.warn(`[parse_serial] Checksum failure for ${deviceId} — block discarded`);
+				this.log.warn(`[parseSerial] Checksum failure for ${deviceId} — block discarded`);
 				return;
 			}
 
@@ -438,12 +437,12 @@ class Vedirect extends utils.Adapter {
 				if (stateAttr[key] === undefined) continue;
 				const lookupFn = LOOKUP_KEYS.get(key);
 				const value = lookupFn
-					? lookupFn([key, rawValue], lookups)
+					? lookupFn(rawValue, lookups)
 					: convertValue(key, rawValue);
 				this.stateSetCreate(deviceId, key, key, value);
 			}
 		} catch (error) {
-			this.log.error(`[parse_serial] Error processing VE.Direct data for ${deviceId}: ${error instanceof Error ? error.message : String(error)}`);
+			this.log.error(`[parseSerial] Error processing VE.Direct data for ${deviceId}: ${error instanceof Error ? error.message : String(error)}`);
 			this.errorHandler(error);
 		}
 	}
@@ -490,7 +489,6 @@ class Vedirect extends utils.Adapter {
 	stateSetCreate(deviceId, stateName, name, value) {
 		const createStateName = `devices.${deviceId}.${stateName}`;
 		this.log.debug('[stateSetCreate]' + createStateName + ' with value : ' + value);
-		// const expireTime = 0;
 		try {
 			// Try to get details from state lib, if not use defaults. throw warning is states is not known in attribute list
 			const attr = stateAttr[name];
@@ -601,7 +599,7 @@ class Vedirect extends utils.Adapter {
 	sendSentry(msg) {
 
 		if (!disableSentry) {
-			this.log.info(`[Error catched and send to Sentry, thank you collaborating!] error: ${msg}`);
+			this.log.info(`[Error caught and sent to Sentry, thank you for collaborating!] error: ${msg}`);
 			if (this.supportsFeature && this.supportsFeature('PLUGINS')) {
 				const sentryInstance = this.getPluginInstance('sentry');
 				if (sentryInstance) {
