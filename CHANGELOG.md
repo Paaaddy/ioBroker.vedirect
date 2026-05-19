@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.5.5](https://github.com/Paaaddy/ioBroker.vedirect/compare/v0.5.4...v0.5.5) (2026-05-17)
+
+
+### Bug Fixes
+
+* optimize hot path, fix port-close race, harden stale command discard ([#36](https://github.com/Paaaddy/ioBroker.vedirect/issues/36)) ([53e8a02](https://github.com/Paaaddy/ioBroker.vedirect/commit/53e8a02bb62c62123c510c5ecdd7c6e79bba86e1))
+
 ## [0.5.4](https://github.com/Paaaddy/ioBroker.vedirect/compare/v0.5.3...v0.5.4) (2026-05-13)
 
 
